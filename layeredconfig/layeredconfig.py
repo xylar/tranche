@@ -9,7 +9,7 @@ from io import StringIO
 import numpy as np
 
 
-class MpasConfigParser:
+class LayeredConfig:
     """
     A "meta" config parser that keeps a dictionary of config parsers and their
     sources to combine when needed.  The custom config parser allows provenance
@@ -19,7 +19,7 @@ class MpasConfigParser:
 
     Example
     -------
-    >>> config = MpasConfigParser()
+    >>> config = LayeredConfig()
     >>> config.add_from_file('default.cfg')
     >>> config.add_user_config('user.cfg')
     >>> value = config.get('section', 'option')
@@ -249,7 +249,7 @@ class MpasConfigParser:
             sanitized_str = expression_string.replace('np.', '').replace(
                 'numpy.', ''
             )
-            result = eval(sanitized_str, MpasConfigParser._np_allowed)
+            result = eval(sanitized_str, LayeredConfig._np_allowed)
         else:
             result = ast.literal_eval(expression_string)
 
@@ -415,15 +415,15 @@ class MpasConfigParser:
 
         Returns
         -------
-        config_copy : mpas_tools.config.MpasConfigParser
+        config_copy : layeredconfig.LayeredConfig
             The deep copy
         """
-        config_copy = MpasConfigParser()
+        config_copy = LayeredConfig()
         for filename, config in self._configs.items():
-            config_copy._configs[filename] = MpasConfigParser._deepcopy(config)
+            config_copy._configs[filename] = LayeredConfig._deepcopy(config)
 
         for filename, config in self._user_config.items():
-            config_copy._user_config[filename] = MpasConfigParser._deepcopy(
+            config_copy._user_config[filename] = LayeredConfig._deepcopy(
                 config
             )
 
@@ -438,7 +438,7 @@ class MpasConfigParser:
 
         Parameters
         ----------
-        other : mpas_tools.config.MpasConfigParser
+    other : layeredconfig.LayeredConfig
             The other, higher priority config parser
         """
         other = other.copy()
@@ -457,7 +457,7 @@ class MpasConfigParser:
 
         Parameters
         ----------
-        other : mpas_tools.config.MpasConfigParser
+    other : layeredconfig.LayeredConfig
             The other, higher priority config parser
         """
         other = other.copy()
