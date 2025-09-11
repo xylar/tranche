@@ -26,6 +26,11 @@ Issues = "https://github.com/e3sm-project/layeredconfig/issues"
 
 [project.optional-dependencies]
 numpy = ["numpy>=1.22"]
+dev = [
+  "pre-commit>=3.5",
+  "pytest>=7.4",
+  "pytest-cov>=4.1",
+]
 
 [tool.setuptools]
 packages = ["layeredconfig"]
@@ -67,3 +72,7 @@ show_error_codes = true
 pretty = true
 ignore_missing_imports = true
 exclude = ["docs"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
