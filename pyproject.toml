@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "layeredconfig"
-version = "0.1.0"
+dynamic = ["version"]
 description = "ConfigParser with layered precedence, provenance, comment-preserving writes, and safe expressions."
 readme = "README.md"
 authors = [
@@ -35,6 +35,9 @@ dev = [
 [tool.setuptools]
 packages = ["layeredconfig"]
 include-package-data = true
+
+[tool.setuptools.dynamic]
+version = {attr = "layeredconfig.version.__version__"}
 
 [tool.setuptools.package-data]
 layeredconfig = ["py.typed"]
