@@ -104,13 +104,17 @@ class LayeredConfig:
         return symbols
 
     @staticmethod
-    def _safe_eval(expression: str, *, allow_numpy: bool = False) -> Any:
+    def _safe_eval(
+        expression: str,
+        allow_numpy: bool = False,
+        extra_symbols: Optional[Dict[str, Any]] = None,
+    ) -> Any:
         """
         Evaluate a restricted Python expression safely using an AST whitelist.
 
-    Allowed nodes: Expression, Constant, List, Tuple, Dict, Name,
-    Attribute, Call, UnaryOp, BinOp. Names containing '__' are rejected.
-    Attribute access is only allowed on SafeNamespace instances.
+        Allowed nodes: Expression, Constant, List, Tuple, Dict, Name,
+        Attribute, Call, UnaryOp, BinOp. Names containing '__' are rejected.
+        Attribute access is only allowed on SafeNamespace instances.
         """
 
         allowed_nodes = (
@@ -129,6 +133,14 @@ class LayeredConfig:
         tree = ast.parse(expression, mode="eval")
 
         symbols = LayeredConfig._default_symbols(allow_numpy)
+        # Merge any user-registered symbols (simple names only)
+        if extra_symbols:
+            for key, val in extra_symbols.items():
+                if "__" in key or "." in key:
+                    raise ValueError(
+                        "Illegal symbol name; '__' and '.' are not allowed"
+                    )
+                symbols[key] = val
 
         def eval_node(node: ast.AST) -> Any:
             if not isinstance(node, allowed_nodes):
@@ -232,6 +244,9 @@ class LayeredConfig:
         self._comments: Dict[
             str, Dict[Union[str, Tuple[str, str]], str]
         ] = {}
+
+        # extra safe-eval symbols registered by the user
+        self._extra_symbols: Dict[str, Any] = {}
 
         # combined state
         self.combined: Optional[Union[ConfigParser, RawConfigParser]] = None
@@ -485,7 +500,9 @@ class LayeredConfig:
             result = ast.literal_eval(expression_string)
         elif backend == "safe":
             result = LayeredConfig._safe_eval(
-                expression_string, allow_numpy=allow_numpy
+                expression_string,
+                allow_numpy=allow_numpy,
+                extra_symbols=self._extra_symbols,
             )
         else:
             raise ValueError(f"Unsupported backend: {backend}")
@@ -500,6 +517,63 @@ class LayeredConfig:
                     result[key] = dtype(result[key])
 
         return result
+
+    def register_symbol(self, name: str, obj: Any) -> None:
+        """
+        Make 'name' available to the safe expression backend.
+
+        Restrictions:
+        - name must not contain '__' or '.'
+        - cannot override reserved core names: 'np', 'numpy', 'math',
+          'range', 'int', 'float', 'pi'
+
+        Examples
+        --------
+        Register a stdlib function (math.sqrt) and call it from the config:
+
+        >>> import math
+        >>> config = LayeredConfig()
+        >>> config.register_symbol('sqrt', math.sqrt)
+        >>> # INI has:
+        >>> #  [calc]
+        >>> #  val = sqrt(9)
+        >>> config.getexpression('calc', 'val', backend='safe')
+        3.0
+
+        Register a reducer (statistics.mean):
+
+        >>> import statistics
+        >>> config.register_symbol('mean', statistics.mean)
+        >>> # INI has:
+        >>> #  [data]
+        >>> #  avg = mean([1, 2, 3])
+        >>> config.getexpression('data', 'avg', backend='safe')
+        2
+
+        Register a type (datetime.timedelta) supporting keyword args:
+
+        >>> from datetime import timedelta
+        >>> config.register_symbol('timedelta', timedelta)
+        >>> # INI has:
+        >>> #  [sched]
+        >>> #  interval = timedelta(days=2)
+        >>> config.getexpression('sched', 'interval', backend='safe')
+        datetime.timedelta(days=2)
+
+        Parameters
+        ----------
+        name : str
+            The name to register
+
+        obj : any
+            The object to register under the given name
+        """
+        if "__" in name or "." in name:
+            raise ValueError("Symbol names cannot contain '__' or '.'")
+        reserved = {"np", "numpy", "math", "range", "int", "float", "pi"}
+        if name in reserved:
+            raise ValueError(f"Cannot override reserved symbol: {name}")
+        self._extra_symbols[name] = obj
 
     def has_section(self, section: str) -> bool:
         """
