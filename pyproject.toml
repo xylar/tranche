@@ -1,0 +1,78 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "layeredconfig"
+version = "0.1.0"
+description = "ConfigParser with layered precedence, provenance, comment-preserving writes, and safe expressions."
+readme = "README.md"
+authors = [
+  { name = "E3SM/MPAS-Analysis team" }
+]
+license = { text = "BSD-3-Clause" }
+requires-python = ">=3.10"
+keywords = ["config", "configparser", "layered", "provenance", "numpy", "safe-eval"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "License :: OSI Approved :: BSD License",
+  "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/e3sm-project/layeredconfig"
+Issues = "https://github.com/e3sm-project/layeredconfig/issues"
+
+[project.optional-dependencies]
+numpy = ["numpy>=1.22"]
+dev = [
+  "pre-commit>=3.5",
+  "pytest>=7.4",
+  "pytest-cov>=4.1",
+]
+
+[tool.setuptools]
+packages = ["layeredconfig"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+layeredconfig = ["py.typed"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 88
+extend-exclude = ["docs"]
+
+[tool.ruff.lint]
+select = [
+  "E", "F", "W",  # pycodestyle/pyflakes
+  "I",              # isort
+  "UP",             # pyupgrade
+  "B",              # flake8-bugbear
+]
+ignore = [
+]
+
+[tool.ruff.format]
+quote-style = "preserve"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.mypy]
+python_version = "3.10"
+warn_unused_configs = true
+disallow_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_return_any = true
+strict_equality = true
+show_error_codes = true
+pretty = true
+ignore_missing_imports = true
+exclude = ["docs"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
