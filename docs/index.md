@@ -14,6 +14,7 @@ ConfigParser with layered precedence, provenance, comment-preserving writes, and
 
 why-not
 getting-started
+releasing-pypi
 api/index
 ```
 
