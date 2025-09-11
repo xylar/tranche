@@ -2,10 +2,16 @@ import ast
 import inspect
 import os
 import sys
-from configparser import ConfigParser, ExtendedInterpolation, RawConfigParser
+from configparser import (
+    ConfigParser,
+    ExtendedInterpolation,
+    RawConfigParser,
+    SectionProxy,
+)
 from importlib.resources import files as imp_res_files
 from io import StringIO
-from typing import cast, Dict, Tuple
+from types import ModuleType
+from typing import Any, Dict, List, Optional, Tuple, Union, cast, TextIO, Type
 
 import numpy as np
 
@@ -37,7 +43,7 @@ class LayeredConfig:
         The source of each section or option
     """
 
-    _np_allowed = dict(
+    _np_allowed: Dict[str, Any] = dict(
         linspace=np.linspace,
         xrange=range,
         range=range,
@@ -49,19 +55,25 @@ class LayeredConfig:
         __builtins__=None,
     )
 
-    def __init__(self):
+    def __init__(self) -> None:
         """
         Make a new (empty) config parser
         """
+        # per-file configs and comments
+        self._configs: Dict[str, RawConfigParser] = {}
+        self._user_config: Dict[str, RawConfigParser] = {}
+        self._comments: Dict[
+            str, Dict[Union[str, Tuple[str, str]], str]
+        ] = {}
 
-        self._configs = dict()
-        self._user_config = dict()
-        self._comments = dict()
-        self.combined = None
-        self.combined_comments = None
-        self.sources = None
+        # combined state
+        self.combined: Optional[Union[ConfigParser, RawConfigParser]] = None
+        self.combined_comments: Optional[
+            Dict[Union[str, Tuple[str, str]], str]
+        ] = None
+        self.sources: Optional[Dict[Tuple[str, str], str]] = None
 
-    def add_user_config(self, filename):
+    def add_user_config(self, filename: str) -> None:
         """
         Add a the contents of a user config file to the parser.  These options
         take precedence over all other options.
@@ -73,7 +85,7 @@ class LayeredConfig:
         """
         self._add(filename, user=True)
 
-    def add_from_file(self, filename):
+    def add_from_file(self, filename: str) -> None:
         """
         Add the contents of a config file to the parser.
 
@@ -84,7 +96,12 @@ class LayeredConfig:
         """
         self._add(filename, user=False)
 
-    def add_from_package(self, package, config_filename, exception=True):
+    def add_from_package(
+        self,
+        package: Union[str, ModuleType],
+        config_filename: str,
+        exception: bool = True,
+    ) -> None:
         """
         Add the contents of a config file to the parser.
 
@@ -101,12 +118,12 @@ class LayeredConfig:
         """
         try:
             path = imp_res_files(package) / config_filename
-            self._add(path, user=False)
+            self._add(str(path), user=False)
         except (ModuleNotFoundError, FileNotFoundError, TypeError):
             if exception:
                 raise
 
-    def get(self, section, option):
+    def get(self, section: str, option: str) -> str:
         """
         Get an option value for a given section.
 
@@ -125,10 +142,10 @@ class LayeredConfig:
         """
         if self.combined is None:
             self.combine()
-        combined = cast(RawConfigParser, self.combined)
+        combined = cast(Union[ConfigParser, RawConfigParser], self.combined)
         return combined.get(section, option)
 
-    def getint(self, section, option):
+    def getint(self, section: str, option: str) -> int:
         """
         Get an option integer value for a given section.
 
@@ -147,10 +164,10 @@ class LayeredConfig:
         """
         if self.combined is None:
             self.combine()
-        combined = cast(RawConfigParser, self.combined)
+        combined = cast(Union[ConfigParser, RawConfigParser], self.combined)
         return combined.getint(section, option)
 
-    def getfloat(self, section, option):
+    def getfloat(self, section: str, option: str) -> float:
         """
         Get an option float value for a given section.
 
@@ -169,10 +186,10 @@ class LayeredConfig:
         """
         if self.combined is None:
             self.combine()
-        combined = cast(RawConfigParser, self.combined)
+        combined = cast(Union[ConfigParser, RawConfigParser], self.combined)
         return combined.getfloat(section, option)
 
-    def getboolean(self, section, option):
+    def getboolean(self, section: str, option: str) -> bool:
         """
         Get an option boolean value for a given section.
 
@@ -191,10 +208,12 @@ class LayeredConfig:
         """
         if self.combined is None:
             self.combine()
-        combined = cast(RawConfigParser, self.combined)
+        combined = cast(Union[ConfigParser, RawConfigParser], self.combined)
         return combined.getboolean(section, option)
 
-    def getlist(self, section, option, dtype=str):
+    def getlist(
+        self, section: str, option: str, dtype: Type = str
+    ) -> List[Any]:
         """
         Get an option value as a list for a given section.
 
@@ -218,7 +237,13 @@ class LayeredConfig:
         values = [dtype(value) for value in values.replace(',', ' ').split()]
         return values
 
-    def getexpression(self, section, option, dtype=None, use_numpyfunc=False):
+    def getexpression(
+        self,
+        section: str,
+        option: str,
+        dtype: Optional[Type] = None,
+        use_numpyfunc: bool = False,
+    ) -> Any:
         """
         Get an option as an expression (typically a list, though tuples and
         dicts are also available).  The expression is required to have valid
@@ -269,7 +294,7 @@ class LayeredConfig:
 
         return result
 
-    def has_section(self, section):
+    def has_section(self, section: str) -> bool:
         """
         Whether the given section is part of the config
 
@@ -285,10 +310,10 @@ class LayeredConfig:
         """
         if self.combined is None:
             self.combine()
-        combined = cast(RawConfigParser, self.combined)
+        combined = cast(Union[ConfigParser, RawConfigParser], self.combined)
         return combined.has_section(section)
 
-    def has_option(self, section, option):
+    def has_option(self, section: str, option: str) -> bool:
         """
         Whether the given section has the given option
 
@@ -307,10 +332,17 @@ class LayeredConfig:
         """
         if self.combined is None:
             self.combine()
-        combined = cast(RawConfigParser, self.combined)
+        combined = cast(Union[ConfigParser, RawConfigParser], self.combined)
         return combined.has_option(section, option)
 
-    def set(self, section, option, value=None, comment=None, user=False):
+    def set(
+        self,
+        section: str,
+        option: str,
+        value: Optional[str] = None,
+        comment: Optional[str] = None,
+        user: bool = False,
+    ) -> None:
         """
         Set the value of the given option in the given section.  The file from
          which this function was called is also retained for provenance.
@@ -359,7 +391,13 @@ class LayeredConfig:
             comment = ''.join([f'# {line}\n' for line in comment.split('\n')])
         self._comments[filename][(section, option)] = comment
 
-    def write(self, fp, include_sources=True, include_comments=True, raw=True):
+    def write(
+        self,
+        fp: TextIO,
+        include_sources: bool = True,
+        include_comments: bool = True,
+        raw: bool = True,
+    ) -> None:
         """
         Write the config options to the given file pointer.
 
@@ -381,9 +419,9 @@ class LayeredConfig:
             interpolation
         """
         self.combine(raw=raw)
-        combined = cast(RawConfigParser, self.combined)
+        combined = cast(Union[ConfigParser, RawConfigParser], self.combined)
         combined_comments = cast(
-            Dict[Tuple[str, str] | str, str], self.combined_comments
+            Dict[Union[str, Tuple[str, str]], str], self.combined_comments
         )
         sources = cast(Dict[Tuple[str, str], str], self.sources)
         for section in combined.sections():
@@ -408,7 +446,7 @@ class LayeredConfig:
             # access commands
             self.combined = None
 
-    def list_files(self):
+    def list_files(self) -> List[str]:
         """
         Get a list of files contributing to the combined config options
 
@@ -421,7 +459,7 @@ class LayeredConfig:
         filenames = list(self._configs.keys()) + list(self._user_config.keys())
         return filenames
 
-    def copy(self):
+    def copy(self) -> "LayeredConfig":
         """
         Get a deep copy of the config parser
 
@@ -442,7 +480,7 @@ class LayeredConfig:
         config_copy._comments = dict(self._comments)
         return config_copy
 
-    def append(self, other):
+    def append(self, other: "LayeredConfig") -> None:
         """
         Append a deep copy of another config parser to this one.  Config
         options from ``other`` will take precedence over those from this config
@@ -461,7 +499,7 @@ class LayeredConfig:
         self.combined_comments = None
         self.sources = None
 
-    def prepend(self, other):
+    def prepend(self, other: "LayeredConfig") -> None:
         """
         Prepend a deep copy of another config parser to this one.  Config
         options from this config parser will take precedence over those from
@@ -489,7 +527,7 @@ class LayeredConfig:
         self.combined_comments = None
         self.sources = None
 
-    def __getitem__(self, section):
+    def __getitem__(self, section: str) -> SectionProxy:
         """
         Get get the config options for a given section.
 
@@ -505,10 +543,10 @@ class LayeredConfig:
         """
         if self.combined is None:
             self.combine()
-        combined = cast(RawConfigParser, self.combined)
+        combined = cast(Union[ConfigParser, RawConfigParser], self.combined)
         return combined[section]
 
-    def combine(self, raw=False):
+    def combine(self, raw: bool = False) -> None:
         """
         Combine the config files into one.  This is normally handled
         automatically.
@@ -541,7 +579,7 @@ class LayeredConfig:
                             self._comments[source][(section, option)]
                         )
 
-    def _add(self, filename, user):
+    def _add(self, filename: str, user: bool) -> None:
         filename = os.path.abspath(filename)
         config = RawConfigParser()
         if not os.path.exists(filename):
@@ -560,7 +598,9 @@ class LayeredConfig:
         self.sources = None
 
     @staticmethod
-    def _parse_comments(fp, filename, comments_before=True):
+    def _parse_comments(
+        fp: TextIO, filename: str, comments_before: bool = True
+    ) -> Dict[Union[str, Tuple[str, str]], str]:
         """
         Parse the comments in a config file into a dictionary.
 
@@ -644,7 +684,9 @@ class LayeredConfig:
         return comments
 
     @staticmethod
-    def _deepcopy(config):
+    def _deepcopy(
+        config: Union[ConfigParser, RawConfigParser]
+    ) -> ConfigParser:
         """
         Make a deep copy of the ConfigParser object.
 
