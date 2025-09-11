@@ -378,6 +378,42 @@ class LayeredConfig:
         combined = cast(CombinedParser, self.combined)
         return combined.getboolean(section, option)
 
+    def explain(self, section: str, option: str) -> dict:
+        """
+        Explain the provenance of an option.
+
+        Returns a dictionary with the effective value, the source file path,
+        and which layer provided it ("user" or "base").
+
+        Parameters
+        ----------
+        section : str
+            The name of the config section
+
+        option : str
+            The name of the config option
+
+        Returns
+        -------
+        info : dict
+            {"value": ..., "source": <path>, "layer": "user"|"base"}
+        """
+        if self.combined is None or self.sources is None:
+            self.combine()
+        combined = cast(CombinedParser, self.combined)
+        sources = cast(Dict[Tuple[str, str], str], self.sources)
+
+        # This will raise if the section/option does not exist, mirroring
+        # ConfigParser behavior
+        value = combined.get(section, option)
+
+        key = (section, option)
+        if key not in sources:
+            raise KeyError(f"No provenance found for {section}.{option}")
+        source = sources[key]
+        layer = "user" if source in self._user_config else "base"
+        return {"value": value, "source": source, "layer": layer}
+
     def getlist(
         self, section: str, option: str, dtype: Callable[[str], T] = str
     ) -> List[T]:
