@@ -11,9 +11,24 @@ from configparser import (
 from importlib.resources import files as imp_res_files
 from io import StringIO
 from types import ModuleType
-from typing import Any, Dict, List, Optional, Tuple, Union, cast, TextIO, Type
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Union,
+    cast,
+    TextIO,
+    Type,
+    TypeVar,
+    Callable,
+)
 
 import numpy as np
+
+CombinedParser = Union[ConfigParser, RawConfigParser]
+T = TypeVar("T")
 
 
 class LayeredConfig:
@@ -142,7 +157,7 @@ class LayeredConfig:
         """
         if self.combined is None:
             self.combine()
-        combined = cast(Union[ConfigParser, RawConfigParser], self.combined)
+        combined = cast(CombinedParser, self.combined)
         return combined.get(section, option)
 
     def getint(self, section: str, option: str) -> int:
@@ -164,7 +179,7 @@ class LayeredConfig:
         """
         if self.combined is None:
             self.combine()
-        combined = cast(Union[ConfigParser, RawConfigParser], self.combined)
+        combined = cast(CombinedParser, self.combined)
         return combined.getint(section, option)
 
     def getfloat(self, section: str, option: str) -> float:
@@ -186,7 +201,7 @@ class LayeredConfig:
         """
         if self.combined is None:
             self.combine()
-        combined = cast(Union[ConfigParser, RawConfigParser], self.combined)
+        combined = cast(CombinedParser, self.combined)
         return combined.getfloat(section, option)
 
     def getboolean(self, section: str, option: str) -> bool:
@@ -208,12 +223,12 @@ class LayeredConfig:
         """
         if self.combined is None:
             self.combine()
-        combined = cast(Union[ConfigParser, RawConfigParser], self.combined)
+        combined = cast(CombinedParser, self.combined)
         return combined.getboolean(section, option)
 
     def getlist(
-        self, section: str, option: str, dtype: Type = str
-    ) -> List[Any]:
+        self, section: str, option: str, dtype: Callable[[str], T] = str
+    ) -> List[T]:
         """
         Get an option value as a list for a given section.
 
@@ -310,7 +325,7 @@ class LayeredConfig:
         """
         if self.combined is None:
             self.combine()
-        combined = cast(Union[ConfigParser, RawConfigParser], self.combined)
+        combined = cast(CombinedParser, self.combined)
         return combined.has_section(section)
 
     def has_option(self, section: str, option: str) -> bool:
@@ -332,7 +347,7 @@ class LayeredConfig:
         """
         if self.combined is None:
             self.combine()
-        combined = cast(Union[ConfigParser, RawConfigParser], self.combined)
+        combined = cast(CombinedParser, self.combined)
         return combined.has_option(section, option)
 
     def set(
@@ -419,7 +434,7 @@ class LayeredConfig:
             interpolation
         """
         self.combine(raw=raw)
-        combined = cast(Union[ConfigParser, RawConfigParser], self.combined)
+        combined = cast(CombinedParser, self.combined)
         combined_comments = cast(
             Dict[Union[str, Tuple[str, str]], str], self.combined_comments
         )
@@ -543,7 +558,7 @@ class LayeredConfig:
         """
         if self.combined is None:
             self.combine()
-        combined = cast(Union[ConfigParser, RawConfigParser], self.combined)
+        combined = cast(CombinedParser, self.combined)
         return combined[section]
 
     def combine(self, raw: bool = False) -> None:
