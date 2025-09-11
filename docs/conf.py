@@ -11,7 +11,7 @@ import layeredconfig as _pkg
 # -- Project information -----------------------------------------------------
 
 project = "layeredconfig"
-author = "E3SM/MPAS-Analysis team"
+author = "Xylar Asay-Davis"
 copyright = f"{datetime.now().year}, {author}"
 release = str(_pkg.__version__)
 

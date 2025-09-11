@@ -2,18 +2,28 @@
 
 ConfigParser with layered precedence, provenance, comment-preserving writes, and safe expressions.
 
+## Documentation
+
+Full docs: https://xylar.github.io/layeredconfig/
+
 ## Install
 
-- Base (no numpy):
+- From PyPI (no NumPy):
+
+```bash
+pip install layeredconfig
+```
+
+- With NumPy extras (to enable safe NumPy expressions):
+
+```bash
+pip install layeredconfig[numpy]
+```
+
+- From source (local checkout):
 
 ```bash
 pip install .
-```
-
-- With numpy extras for safe numpy expressions:
-
-```bash
-pip install .[numpy]
 ```
 
 ## Quick start
@@ -22,8 +32,8 @@ pip install .[numpy]
 from layeredconfig import LayeredConfig
 
 config = LayeredConfig()
-config.add_from_file("defaults.ini")
-config.add_user_config("user.ini")
+config.add_from_file("defaults.cfg")
+config.add_user_config("user.cfg")
 
 # Simple values
 value = config.get("core", "option")
@@ -53,6 +63,12 @@ You can add your own safe symbols:
 import math
 config.register_symbol("sqrt", math.sqrt)
 ```
+
+## Links
+
+- Docs: https://xylar.github.io/layeredconfig/
+- Source: https://github.com/xylar/layeredconfig
+- Issues: https://github.com/xylar/layeredconfig/issues
 
 ## License
 
