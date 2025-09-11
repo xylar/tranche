@@ -19,5 +19,5 @@ api/index
 
 ## Links
 
-- Source: https://github.com/e3sm-project/layeredconfig
-- Issues: https://github.com/e3sm-project/layeredconfig/issues
+- Source: https://github.com/xylar/layeredconfig
+- Issues: https://github.com/xylar/layeredconfig/issues

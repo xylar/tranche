@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "ConfigParser with layered precedence, provenance, comment-preserving writes, and safe expressions."
 readme = "README.md"
 authors = [
-  { name = "E3SM/MPAS-Analysis team" }
+  { name = "Xylar Asay-Davis" }
 ]
 license = { text = "BSD-3-Clause" }
 requires-python = ">=3.10"
@@ -21,8 +21,9 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/e3sm-project/layeredconfig"
-Issues = "https://github.com/e3sm-project/layeredconfig/issues"
+Homepage = "https://github.com/xylar/layeredconfig"
+Documentation = "https://xylar.github.io/layeredconfig/"
+Issues = "https://github.com/xylar/layeredconfig/issues"
 
 [project.optional-dependencies]
 numpy = ["numpy>=1.22"]
