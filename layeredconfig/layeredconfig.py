@@ -2,6 +2,7 @@ import ast
 import inspect
 import math
 import os
+import re
 import sys
 from collections.abc import Callable
 from configparser import (
@@ -12,6 +13,7 @@ from configparser import (
 )
 from importlib.resources import files as imp_res_files
 from io import StringIO
+from re import Match
 from types import ModuleType
 from typing import Any, TextIO, TypeVar, cast
 
@@ -850,13 +852,55 @@ class LayeredConfig:
                             source
                         ][(section, option)]
 
+    def validate(self, validator: Callable[[dict[str, dict[str, str]]], None]) -> None:
+        """
+        Call a user-provided validator function on the config as a nested dict.
+
+        The validator is called with a dictionary of the form:
+            {section: {option: value, ...}, ...}
+        where all values are strings as returned by `get()`.
+
+        This allows integration with validation libraries such as Pydantic or
+        voluptuous, or custom validation logic. If the validator raises an exception,
+        it will propagate to the caller.
+
+        Parameters
+        ----------
+        validator : Callable[[dict[str, dict[str, str]]], None]
+            A function that takes a nested dictionary of config values and raises
+            on error.
+
+        Examples
+        --------
+        >>> def my_validator(cfg):
+        ...     assert 'main' in cfg
+        ...     assert 'foo' in cfg['main']
+        >>> config.validate(my_validator)
+        """
+        if self.combined is None:
+            self.combine()
+        combined = cast(CombinedParser, self.combined)
+        config_dict: dict[str, dict[str, str]] = {}
+        for section in combined.sections():
+            config_dict[section] = {
+                option: self.get(section, option)
+                for option in combined.options(section)
+            }
+        validator(config_dict)
+
     def _add(self, filename: str, user: bool) -> None:
         filename = os.path.abspath(filename)
         config = RawConfigParser()
         if not os.path.exists(filename):
             raise FileNotFoundError(f'Config file does not exist: {filename}')
-        config.read(filenames=filename)
-        with open(filename) as fp:
+        # Preprocess file for env var interpolation before reading
+        with open(filename, encoding="utf-8") as f:
+            lines = f.readlines()
+        lines = [self._interpolate_env_vars(line) for line in lines]
+        from io import StringIO
+
+        config.read_file(StringIO(''.join(lines)), source=filename)
+        with open(filename, encoding="utf-8") as fp:
             comments = self._parse_comments(fp, filename, comments_before=True)
 
         if user:
@@ -867,6 +911,18 @@ class LayeredConfig:
         self.combined = None
         self.combined_comments = None
         self.sources = None
+
+    def _interpolate_env_vars(self, value: str) -> str:
+        """
+        Replace ${env:VAR} with the value of the environment variable VAR.
+        """
+
+        def replacer(match: 'Match[str]') -> str:
+            var = match.group(1)
+            return os.environ.get(var, '')
+
+        pattern = re.compile(r'\$\{env:([A-Za-z_][A-Za-z0-9_]*)\}')
+        return pattern.sub(replacer, value)
 
     @staticmethod
     def _parse_comments(

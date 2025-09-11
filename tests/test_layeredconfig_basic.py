@@ -170,3 +170,45 @@ def test_getexpression_dtype_casting(tmp_path: Path, backend: str, dtype: type) 
     assert isinstance(res, dict)
     for v in res.values():
         assert isinstance(v, dtype)
+
+
+def test_extended_interpolation_section_option(tmp_path: Path) -> None:
+    cfg_path = write_tmp_cfg(
+        tmp_path,
+        "inter.cfg",
+        """
+        [base]
+        foo = hello
+        bar = ${base:foo}
+        baz = ${base:bar} world
+        """,
+    )
+    cfg = LayeredConfig()
+    cfg.add_from_file(cfg_path)
+    assert cfg.get("base", "bar") == "hello"
+    assert cfg.get("base", "baz") == "hello world"
+
+
+def test_safe_eval_rejects_dunder_and_nonwhitelisted_attr(
+    tmp_path: Path,
+) -> None:
+    cfg_path = write_tmp_cfg(
+        tmp_path,
+        "expr.cfg",
+        """
+        [expr]
+        val1 = (1).__class__
+        val2 = (1).__add__(2)
+        val3 = (1).real
+        """,
+    )
+    cfg = LayeredConfig()
+    cfg.add_from_file(cfg_path)
+    # Dunder name usage should be rejected
+    with pytest.raises(ValueError):
+        cfg.getexpression("expr", "val1", backend="safe")
+    with pytest.raises(ValueError):
+        cfg.getexpression("expr", "val2", backend="safe")
+    # Attribute chain on non-whitelisted object should be rejected
+    with pytest.raises(ValueError):
+        cfg.getexpression("expr", "val3", backend="safe")
