@@ -5,6 +5,7 @@ import sys
 from configparser import ConfigParser, ExtendedInterpolation, RawConfigParser
 from importlib.resources import files as imp_res_files
 from io import StringIO
+from typing import cast, Dict, Tuple
 
 import numpy as np
 
@@ -124,7 +125,8 @@ class LayeredConfig:
         """
         if self.combined is None:
             self.combine()
-        return self.combined.get(section, option)
+        combined = cast(RawConfigParser, self.combined)
+        return combined.get(section, option)
 
     def getint(self, section, option):
         """
@@ -145,7 +147,8 @@ class LayeredConfig:
         """
         if self.combined is None:
             self.combine()
-        return self.combined.getint(section, option)
+        combined = cast(RawConfigParser, self.combined)
+        return combined.getint(section, option)
 
     def getfloat(self, section, option):
         """
@@ -166,7 +169,8 @@ class LayeredConfig:
         """
         if self.combined is None:
             self.combine()
-        return self.combined.getfloat(section, option)
+        combined = cast(RawConfigParser, self.combined)
+        return combined.getfloat(section, option)
 
     def getboolean(self, section, option):
         """
@@ -187,7 +191,8 @@ class LayeredConfig:
         """
         if self.combined is None:
             self.combine()
-        return self.combined.getboolean(section, option)
+        combined = cast(RawConfigParser, self.combined)
+        return combined.getboolean(section, option)
 
     def getlist(self, section, option, dtype=str):
         """
@@ -280,7 +285,8 @@ class LayeredConfig:
         """
         if self.combined is None:
             self.combine()
-        return self.combined.has_section(section)
+        combined = cast(RawConfigParser, self.combined)
+        return combined.has_section(section)
 
     def has_option(self, section, option):
         """
@@ -301,7 +307,8 @@ class LayeredConfig:
         """
         if self.combined is None:
             self.combine()
-        return self.combined.has_option(section, option)
+        combined = cast(RawConfigParser, self.combined)
+        return combined.has_option(section, option)
 
     def set(self, section, option, value=None, comment=None, user=False):
         """
@@ -358,7 +365,7 @@ class LayeredConfig:
 
         Parameters
         ----------
-        fp : typing.TestIO
+        fp : typing.TextIO
             The file pointer to write to.
 
         include_sources : bool, optional
@@ -374,16 +381,21 @@ class LayeredConfig:
             interpolation
         """
         self.combine(raw=raw)
-        for section in self.combined.sections():
-            section_items = self.combined.items(section=section)
-            if include_comments and section in self.combined_comments:
-                fp.write(self.combined_comments[section])
+        combined = cast(RawConfigParser, self.combined)
+        combined_comments = cast(
+            Dict[Tuple[str, str] | str, str], self.combined_comments
+        )
+        sources = cast(Dict[Tuple[str, str], str], self.sources)
+        for section in combined.sections():
+            section_items = combined.items(section=section)
+            if include_comments and section in combined_comments:
+                fp.write(combined_comments[section])
             fp.write(f'[{section}]\n\n')
             for option, value in section_items:
                 if include_comments:
-                    fp.write(self.combined_comments[(section, option)])
+                    fp.write(combined_comments[(section, option)])
                 if include_sources:
-                    source = self.sources[(section, option)]
+                    source = sources[(section, option)]
                     fp.write(f'# source: {source}\n')
                 value = str(value).replace('\n', '\n\t')
                 if not raw:
@@ -493,7 +505,8 @@ class LayeredConfig:
         """
         if self.combined is None:
             self.combine()
-        return self.combined[section]
+        combined = cast(RawConfigParser, self.combined)
+        return combined[section]
 
     def combine(self, raw=False):
         """
