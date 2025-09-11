@@ -10,7 +10,7 @@ readme = "README.md"
 authors = [
   { name = "Xylar Asay-Davis" }
 ]
-license = { text = "BSD-3-Clause" }
+license = { file = "LICENSE" }
 requires-python = ">=3.10"
 keywords = ["config", "configparser", "layered", "provenance", "numpy", "safe-eval"]
 classifiers = [
@@ -42,6 +42,12 @@ docs = [
 [tool.setuptools]
 packages = ["layeredconfig"]
 include-package-data = true
+license-files = [
+  "LICENSE",
+  "LICENSE.*",
+  "COPYING*",
+  "NOTICE*",
+]
 
 [tool.setuptools.dynamic]
 version = {attr = "layeredconfig.version.__version__"}
