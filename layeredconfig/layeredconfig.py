@@ -454,7 +454,7 @@ class LayeredConfig:
         option: str,
         dtype: type | None = None,
         backend: str = "literal",
-        allow_numpy: bool | None = None,
+        allow_numpy: bool = False,
     ) -> Any:
         """
         Get an option as an expression (typically a list, though tuples and
@@ -486,9 +486,6 @@ class LayeredConfig:
         """  # noqa: E501
         expression_string = self.get(section, option)
 
-        if allow_numpy is None:
-            allow_numpy = False
-
         if backend == "literal":
             result = ast.literal_eval(expression_string)
         elif backend == "safe":
@@ -516,7 +513,9 @@ class LayeredConfig:
         Make 'name' available to the safe expression backend.
 
         Restrictions:
+
         - name must not contain '__' or '.'
+
         - cannot override reserved core names: 'np', 'numpy', 'math',
           'range', 'int', 'float', 'pi'
 
@@ -773,12 +772,12 @@ class LayeredConfig:
 
     def prepend(self, other: "LayeredConfig") -> None:
         """
-            Prepend a deep copy of another config parser to this one.  Config
-            options from this config parser will take precedence over those from
-            ``other``.
+        Prepend a deep copy of another config parser to this one.  Config
+        options from this config parser will take precedence over those from
+        ``other``.
 
-            Parameters
-            ----------
+        Parameters
+        ----------
         other : layeredconfig.LayeredConfig
                 The other, higher priority config parser
         """
