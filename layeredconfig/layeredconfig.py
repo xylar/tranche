@@ -1,8 +1,9 @@
 import ast
-import math
 import inspect
+import math
 import os
 import sys
+from collections.abc import Callable
 from configparser import (
     ConfigParser,
     ExtendedInterpolation,
@@ -12,22 +13,9 @@ from configparser import (
 from importlib.resources import files as imp_res_files
 from io import StringIO
 from types import ModuleType
-from typing import (
-    Any,
-    Dict,
-    List,
-    Optional,
-    Tuple,
-    Union,
-    cast,
-    TextIO,
-    Type,
-    TypeVar,
-    Callable,
-)
+from typing import Any, TextIO, TypeVar, cast
 
-
-CombinedParser = Union[ConfigParser, RawConfigParser]
+CombinedParser = ConfigParser | RawConfigParser
 T = TypeVar("T")
 
 
@@ -61,7 +49,7 @@ class LayeredConfig:
     class _SafeNamespace:
         """Read-only namespace exposing only whitelisted attributes."""
 
-        def __init__(self, allowed: Dict[str, Any]):
+        def __init__(self, allowed: dict[str, Any]):
             self._allowed = dict(allowed)
 
         def __getattr__(self, name: str) -> Any:
@@ -72,14 +60,14 @@ class LayeredConfig:
             return self._allowed[name]
 
     @staticmethod
-    def _default_symbols(allow_numpy: bool) -> Dict[str, Any]:
+    def _default_symbols(allow_numpy: bool) -> dict[str, Any]:
         """
         Default symbol table for the safe expression evaluator.
 
         If allow_numpy is True, expose a constrained 'np'/'numpy' namespace
         with only a few safe callables.
         """
-        symbols: Dict[str, Any] = {
+        symbols: dict[str, Any] = {
             "range": range,
             "int": int,
             "float": float,
@@ -103,17 +91,19 @@ class LayeredConfig:
                     "array": _np.array,
                 }
             )
-            symbols.update({
-                "np": np_ns,
-                "numpy": np_ns,
-            })
+            symbols.update(
+                {
+                    "np": np_ns,
+                    "numpy": np_ns,
+                }
+            )
         return symbols
 
     @staticmethod
     def _safe_eval(
         expression: str,
         allow_numpy: bool = False,
-        extra_symbols: Optional[Dict[str, Any]] = None,
+        extra_symbols: dict[str, Any] | None = None,
     ) -> Any:
         """
         Evaluate a restricted Python expression safely using an AST whitelist.
@@ -151,8 +141,7 @@ class LayeredConfig:
         def eval_node(node: ast.AST) -> Any:
             if not isinstance(node, allowed_nodes):
                 raise ValueError(
-                    f"Unsupported expression element: "
-                    f"{type(node).__name__}"
+                    f"Unsupported expression element: {type(node).__name__}"
                 )
 
             if isinstance(node, ast.Expression):
@@ -167,12 +156,13 @@ class LayeredConfig:
                 # Disallow dict unpacking like {**x}
                 if any(k is None for k in node.keys):
                     raise ValueError("Dict unpacking is not allowed")
-                keys = [
-                    eval_node(cast(ast.AST, k))  # type: ignore[arg-type]
-                    for k in node.keys
-                ]
+                keys_list: list[Any] = []
+                for k in node.keys:
+                    # mypy: after the check above, k is not None
+                    assert k is not None
+                    keys_list.append(eval_node(k))
                 vals = [eval_node(v) for v in node.values]
-                return {k: v for k, v in zip(keys, vals)}
+                return {k: v for k, v in zip(keys_list, vals, strict=True)}
             if isinstance(node, ast.Name):
                 if "__" in node.id:
                     raise ValueError("Use of dunder names is not allowed")
@@ -182,10 +172,7 @@ class LayeredConfig:
             if isinstance(node, ast.Attribute):
                 value = eval_node(node.value)
                 if not isinstance(value, LayeredConfig._SafeNamespace):
-                    raise ValueError(
-                        "Attribute access only allowed on safe "
-                        "namespaces"
-                    )
+                    raise ValueError("Attribute access only allowed on safe namespaces")
                 return getattr(value, node.attr)
             if isinstance(node, ast.Call):
                 func = eval_node(node.func)
@@ -232,7 +219,7 @@ class LayeredConfig:
                 if isinstance(op, ast.Mod):
                     return left % right
                 if isinstance(op, ast.Pow):
-                    return left ** right
+                    return left**right
                 raise ValueError("Unsupported binary operator")
 
             # Should be unreachable due to the isinstance gate
@@ -245,21 +232,17 @@ class LayeredConfig:
         Make a new (empty) config parser
         """
         # per-file configs and comments
-        self._configs: Dict[str, RawConfigParser] = {}
-        self._user_config: Dict[str, RawConfigParser] = {}
-        self._comments: Dict[
-            str, Dict[Union[str, Tuple[str, str]], str]
-        ] = {}
+        self._configs: dict[str, RawConfigParser] = {}
+        self._user_config: dict[str, RawConfigParser] = {}
+        self._comments: dict[str, dict[str | tuple[str, str], str]] = {}
 
         # extra safe-eval symbols registered by the user
-        self._extra_symbols: Dict[str, Any] = {}
+        self._extra_symbols: dict[str, Any] = {}
 
         # combined state
-        self.combined: Optional[Union[ConfigParser, RawConfigParser]] = None
-        self.combined_comments: Optional[
-            Dict[Union[str, Tuple[str, str]], str]
-        ] = None
-        self.sources: Optional[Dict[Tuple[str, str], str]] = None
+        self.combined: CombinedParser | None = None
+        self.combined_comments: dict[str | tuple[str, str], str] | None = None
+        self.sources: dict[tuple[str, str], str] | None = None
 
     def add_user_config(self, filename: str) -> None:
         """
@@ -286,7 +269,7 @@ class LayeredConfig:
 
     def add_from_package(
         self,
-        package: Union[str, ModuleType],
+        package: str | ModuleType,
         config_filename: str,
         exception: bool = True,
     ) -> None:
@@ -422,7 +405,7 @@ class LayeredConfig:
         if self.combined is None or self.sources is None:
             self.combine()
         combined = cast(CombinedParser, self.combined)
-        sources = cast(Dict[Tuple[str, str], str], self.sources)
+        sources = cast(dict[tuple[str, str], str], self.sources)
 
         # This will raise if the section/option does not exist, mirroring
         # ConfigParser behavior
@@ -436,8 +419,11 @@ class LayeredConfig:
         return {"value": value, "source": source, "layer": layer}
 
     def getlist(
-        self, section: str, option: str, dtype: Callable[[str], T] = str
-    ) -> List[T]:
+        self,
+        section: str,
+        option: str,
+        dtype: Callable[[str], T] = str,  # type: ignore[assignment]
+    ) -> list[T]:
         """
         Get an option value as a list for a given section.
 
@@ -457,17 +443,18 @@ class LayeredConfig:
         value : list
             The value of the config option parsed into a list
         """
-        values = self.get(section, option)
-        values = [dtype(value) for value in values.replace(',', ' ').split()]
-        return values
+        raw = self.get(section, option)
+        parts = raw.replace(',', ' ').split()
+        items: list[T] = [dtype(value) for value in parts]
+        return items
 
     def getexpression(
         self,
         section: str,
         option: str,
-        dtype: Optional[Type] = None,
+        dtype: type | None = None,
         backend: str = "literal",
-        allow_numpy: Optional[bool] = None,
+        allow_numpy: bool | None = None,
     ) -> Any:
         """
         Get an option as an expression (typically a list, though tuples and
@@ -626,8 +613,8 @@ class LayeredConfig:
         self,
         section: str,
         option: str,
-        value: Optional[str] = None,
-        comment: Optional[str] = None,
+        value: str | None = None,
+        comment: str | None = None,
         user: bool = False,
     ) -> None:
         """
@@ -708,9 +695,9 @@ class LayeredConfig:
         self.combine(raw=raw)
         combined = cast(CombinedParser, self.combined)
         combined_comments = cast(
-            Dict[Union[str, Tuple[str, str]], str], self.combined_comments
+            dict[str | tuple[str, str], str], self.combined_comments
         )
-        sources = cast(Dict[Tuple[str, str], str], self.sources)
+        sources = cast(dict[tuple[str, str], str], self.sources)
         for section in combined.sections():
             section_items = combined.items(section=section)
             if include_comments and section in combined_comments:
@@ -733,7 +720,7 @@ class LayeredConfig:
             # access commands
             self.combined = None
 
-    def list_files(self) -> List[str]:
+    def list_files(self) -> list[str]:
         """
         Get a list of files contributing to the combined config options
 
@@ -760,9 +747,7 @@ class LayeredConfig:
             config_copy._configs[filename] = LayeredConfig._deepcopy(config)
 
         for filename, config in self._user_config.items():
-            config_copy._user_config[filename] = LayeredConfig._deepcopy(
-                config
-            )
+            config_copy._user_config[filename] = LayeredConfig._deepcopy(config)
 
         config_copy._comments = dict(self._comments)
         return config_copy
@@ -775,8 +760,8 @@ class LayeredConfig:
 
         Parameters
         ----------
-    other : layeredconfig.LayeredConfig
-            The other, higher priority config parser
+        other : layeredconfig.LayeredConfig
+                The other, higher priority config parser
         """
         other = other.copy()
         self._configs.update(other._configs)
@@ -788,14 +773,14 @@ class LayeredConfig:
 
     def prepend(self, other: "LayeredConfig") -> None:
         """
-        Prepend a deep copy of another config parser to this one.  Config
-        options from this config parser will take precedence over those from
-        ``other``.
+            Prepend a deep copy of another config parser to this one.  Config
+            options from this config parser will take precedence over those from
+            ``other``.
 
-        Parameters
-        ----------
-    other : layeredconfig.LayeredConfig
-            The other, higher priority config parser
+            Parameters
+            ----------
+        other : layeredconfig.LayeredConfig
+                The other, higher priority config parser
         """
         other = other.copy()
 
@@ -854,17 +839,17 @@ class LayeredConfig:
             for source, config in configs.items():
                 for section in config.sections():
                     if section in self._comments[source]:
-                        self.combined_comments[section] = self._comments[
-                            source
-                        ][section]
+                        self.combined_comments[section] = self._comments[source][
+                            section
+                        ]
                     if not self.combined.has_section(section):
                         self.combined.add_section(section)
                     for option, value in config.items(section):
                         self.sources[(section, option)] = source
                         self.combined.set(section, option, value)
-                        self.combined_comments[(section, option)] = (
-                            self._comments[source][(section, option)]
-                        )
+                        self.combined_comments[(section, option)] = self._comments[
+                            source
+                        ][(section, option)]
 
     def _add(self, filename: str, user: bool) -> None:
         filename = os.path.abspath(filename)
@@ -887,7 +872,7 @@ class LayeredConfig:
     @staticmethod
     def _parse_comments(
         fp: TextIO, filename: str, comments_before: bool = True
-    ) -> Dict[Union[str, Tuple[str, str]], str]:
+    ) -> dict[str | tuple[str, str], str]:
         """
         Parse the comments in a config file into a dictionary.
 
@@ -905,10 +890,10 @@ class LayeredConfig:
         comments : dict
             Mapping of (section, option) or section to comment strings.
         """
-        comments = dict()
+        comments: dict[str | tuple[str, str], str] = {}
         current_comment = ''
-        section_name = None
-        option_name = None
+        section_name: str | None = None
+        option_name: str | None = None
         indent_level = 0
         for line_number, line in enumerate(fp, start=1):
             value = line.strip()
@@ -923,26 +908,22 @@ class LayeredConfig:
             cur_indent_level = len(line) - len(line.lstrip())
             is_continuation = cur_indent_level > indent_level
             # a section header or option header?
-            if (
-                section_name is None
-                or option_name is None
-                or not is_continuation
-            ):
+            if section_name is None or option_name is None or not is_continuation:
                 indent_level = cur_indent_level
                 # is it a section header?
                 is_section = value.startswith('[') and value.endswith(']')
                 if is_section:
                     if not comments_before:
                         if option_name is None:
-                            comments[section_name] = current_comment
+                            if section_name is not None:
+                                comments[section_name] = current_comment
                         else:
-                            comments[(section_name, option_name)] = (
-                                current_comment
-                            )
+                            if section_name is not None:
+                                comments[(section_name, option_name)] = current_comment
                     section_name = value[1:-1].strip()
                     option_name = None
 
-                    if comments_before:
+                    if comments_before and section_name is not None:
                         comments[section_name] = current_comment
                     current_comment = ''
                 # an option line?
@@ -950,30 +931,31 @@ class LayeredConfig:
                     delimiter_index = value.find('=')
                     if delimiter_index == -1:
                         raise ValueError(
-                            f'Expected to find "=" on line '
-                            f'{line_number} of {filename}'
+                            f'Expected to find "=" on line {line_number} of {filename}'
                         )
 
                     if not comments_before:
                         if option_name is None:
-                            comments[section_name] = current_comment
+                            if section_name is not None:
+                                comments[section_name] = current_comment
                         else:
-                            comments[(section_name, option_name)] = (
-                                current_comment
-                            )
+                            if section_name is not None and option_name is not None:
+                                comments[(section_name, option_name)] = current_comment
 
                     option_name = value[:delimiter_index].strip().lower()
 
-                    if comments_before:
+                    if (
+                        comments_before
+                        and section_name is not None
+                        and option_name is not None
+                    ):
                         comments[(section_name, option_name)] = current_comment
                     current_comment = ''
 
         return comments
 
     @staticmethod
-    def _deepcopy(
-        config: Union[ConfigParser, RawConfigParser]
-    ) -> ConfigParser:
+    def _deepcopy(config: ConfigParser | RawConfigParser) -> ConfigParser:
         """
         Make a deep copy of the ConfigParser object.
 
