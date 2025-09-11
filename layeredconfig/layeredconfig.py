@@ -287,7 +287,7 @@ class LayeredConfig:
             if isinstance(result, list):
                 result = [dtype(element) for element in result]
             elif isinstance(result, tuple):
-                result = (dtype(element) for element in result)
+                result = tuple(dtype(element) for element in result)
             elif isinstance(result, dict):
                 for key in result:
                     result[key] = dtype(result[key])
