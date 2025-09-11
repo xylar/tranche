@@ -1,4 +1,5 @@
 import ast
+import math
 import inspect
 import os
 import sys
@@ -58,17 +59,168 @@ class LayeredConfig:
         The source of each section or option
     """
 
-    _np_allowed: Dict[str, Any] = dict(
-        linspace=np.linspace,
-        xrange=range,
-        range=range,
-        array=np.array,
-        arange=np.arange,
-        pi=np.pi,
-        Pi=np.pi,
-        int=int,
-        __builtins__=None,
-    )
+    class _SafeNamespace:
+        """Read-only namespace exposing only whitelisted attributes."""
+
+        def __init__(self, allowed: Dict[str, Any]):
+            self._allowed = dict(allowed)
+
+        def __getattr__(self, name: str) -> Any:
+            if "__" in name:
+                raise ValueError("Use of dunder attributes is not allowed")
+            if name not in self._allowed:
+                raise NameError(f"Attribute '{name}' is not allowed")
+            return self._allowed[name]
+
+    @staticmethod
+    def _default_symbols(allow_numpy: bool) -> Dict[str, Any]:
+        """
+        Default symbol table for the safe expression evaluator.
+
+        If allow_numpy is True, expose a constrained 'np'/'numpy' namespace
+        with only a few safe callables.
+        """
+        symbols: Dict[str, Any] = {
+            "range": range,
+            "int": int,
+            "float": float,
+            "pi": math.pi,
+            # Expose 'math' with only 'pi' to start;
+            # extend later via register_symbol
+            "math": LayeredConfig._SafeNamespace({"pi": math.pi}),
+        }
+        if allow_numpy:
+            np_ns = LayeredConfig._SafeNamespace(
+                {
+                    "arange": np.arange,
+                    "linspace": np.linspace,
+                    "array": np.array,
+                }
+            )
+            symbols.update({
+                "np": np_ns,
+                "numpy": np_ns,
+            })
+        return symbols
+
+    @staticmethod
+    def _safe_eval(expression: str, *, allow_numpy: bool = False) -> Any:
+        """
+        Evaluate a restricted Python expression safely using an AST whitelist.
+
+    Allowed nodes: Expression, Constant, List, Tuple, Dict, Name,
+    Attribute, Call, UnaryOp, BinOp. Names containing '__' are rejected.
+    Attribute access is only allowed on SafeNamespace instances.
+        """
+
+        allowed_nodes = (
+            ast.Expression,
+            ast.Constant,
+            ast.List,
+            ast.Tuple,
+            ast.Dict,
+            ast.Name,
+            ast.Attribute,
+            ast.Call,
+            ast.UnaryOp,
+            ast.BinOp,
+        )
+
+        tree = ast.parse(expression, mode="eval")
+
+        symbols = LayeredConfig._default_symbols(allow_numpy)
+
+        def eval_node(node: ast.AST) -> Any:
+            if not isinstance(node, allowed_nodes):
+                raise ValueError(
+                    f"Unsupported expression element: "
+                    f"{type(node).__name__}"
+                )
+
+            if isinstance(node, ast.Expression):
+                return eval_node(node.body)
+            if isinstance(node, ast.Constant):
+                return node.value
+            if isinstance(node, ast.List):
+                return [eval_node(elt) for elt in node.elts]
+            if isinstance(node, ast.Tuple):
+                return tuple(eval_node(elt) for elt in node.elts)
+            if isinstance(node, ast.Dict):
+                # Disallow dict unpacking like {**x}
+                if any(k is None for k in node.keys):
+                    raise ValueError("Dict unpacking is not allowed")
+                keys = [
+                    eval_node(cast(ast.AST, k))  # type: ignore[arg-type]
+                    for k in node.keys
+                ]
+                vals = [eval_node(v) for v in node.values]
+                return {k: v for k, v in zip(keys, vals)}
+            if isinstance(node, ast.Name):
+                if "__" in node.id:
+                    raise ValueError("Use of dunder names is not allowed")
+                if node.id not in symbols:
+                    raise NameError(f"Unknown name: {node.id}")
+                return symbols[node.id]
+            if isinstance(node, ast.Attribute):
+                value = eval_node(node.value)
+                if not isinstance(value, LayeredConfig._SafeNamespace):
+                    raise ValueError(
+                        "Attribute access only allowed on safe "
+                        "namespaces"
+                    )
+                return getattr(value, node.attr)
+            if isinstance(node, ast.Call):
+                func = eval_node(node.func)
+                # Only allow calling plain callables coming from our
+                # symbols/namespaces
+                if not callable(func):
+                    raise ValueError("Attempted to call a non-callable")
+                args = [eval_node(a) for a in node.args]
+                kwargs = {
+                    kw.arg: eval_node(kw.value)
+                    for kw in node.keywords
+                    if kw.arg is not None
+                }
+                # Reject **kwargs or *args (ast.keyword.arg is None for
+                # **kwargs)
+                if any(kw.arg is None for kw in node.keywords):
+                    raise ValueError("Star-args or **kwargs are not allowed")
+                return func(*args, **kwargs)
+            if isinstance(node, ast.UnaryOp):
+                operand = eval_node(node.operand)
+                if isinstance(node.op, ast.UAdd):
+                    return +operand
+                if isinstance(node.op, ast.USub):
+                    return -operand
+                if isinstance(node.op, ast.Not):
+                    return not operand
+                if isinstance(node.op, ast.Invert):
+                    return ~operand
+                raise ValueError("Unsupported unary operator")
+            if isinstance(node, ast.BinOp):
+                left = eval_node(node.left)
+                right = eval_node(node.right)
+                op = node.op
+                if isinstance(op, ast.Add):
+                    return left + right
+                if isinstance(op, ast.Sub):
+                    return left - right
+                if isinstance(op, ast.Mult):
+                    return left * right
+                if isinstance(op, ast.Div):
+                    return left / right
+                if isinstance(op, ast.FloorDiv):
+                    return left // right
+                if isinstance(op, ast.Mod):
+                    return left % right
+                if isinstance(op, ast.Pow):
+                    return left ** right
+                raise ValueError("Unsupported binary operator")
+
+            # Should be unreachable due to the isinstance gate
+            raise ValueError(f"Unsupported node: {type(node).__name__}")
+
+        return eval_node(tree)
 
     def __init__(self) -> None:
         """
@@ -257,7 +409,8 @@ class LayeredConfig:
         section: str,
         option: str,
         dtype: Optional[Type] = None,
-        use_numpyfunc: bool = False,
+        backend: str = "literal",
+        allow_numpy: Optional[bool] = None,
     ) -> Any:
         """
         Get an option as an expression (typically a list, though tuples and
@@ -279,24 +432,27 @@ class LayeredConfig:
             most useful for ensuring that all elements in a list of numbers are
             of type float, rather than int, when the distinction is important.
 
-        use_numpyfunc : bool, optional
-            If ``True``, the expression is evaluated including functionality
-            from the numpy package (which can be referenced either as ``numpy``
-            or ``np``).
-        """  # noqa: E501
+        backend : {"literal", "safe"}
+            - "literal": use ast.literal_eval (default, safest)
+            - "safe": use a whitelisted AST evaluator optionally allowing numpy
 
+        allow_numpy : bool, optional
+            If True and backend="safe", enable limited numpy functions
+            (np.arange, np.linspace, np.array) under names "np"/"numpy".
+        """  # noqa: E501
         expression_string = self.get(section, option)
-        if use_numpyfunc:
-            assert '__' not in expression_string, (
-                f'"__" is not allowed in {expression_string} '
-                f'for use_numpyfunc=True'
-            )
-            sanitized_str = expression_string.replace('np.', '').replace(
-                'numpy.', ''
-            )
-            result = eval(sanitized_str, LayeredConfig._np_allowed)
-        else:
+
+        if allow_numpy is None:
+            allow_numpy = False
+
+        if backend == "literal":
             result = ast.literal_eval(expression_string)
+        elif backend == "safe":
+            result = LayeredConfig._safe_eval(
+                expression_string, allow_numpy=allow_numpy
+            )
+        else:
+            raise ValueError(f"Unsupported backend: {backend}")
 
         if dtype is not None:
             if isinstance(result, list):
