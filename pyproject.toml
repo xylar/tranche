@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "layeredconfig"
+version = "0.1.0"
+description = "ConfigParser with layered precedence, provenance, comment-preserving writes, and safe expressions."
+readme = "README.md"
+authors = [
+  { name = "E3SM/MPAS-Analysis team" }
+]
+license = { text = "BSD-3-Clause" }
+requires-python = ">=3.10"
+keywords = ["config", "configparser", "layered", "provenance", "numpy", "safe-eval"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "License :: OSI Approved :: BSD License",
+  "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/e3sm-project/layeredconfig"
+Issues = "https://github.com/e3sm-project/layeredconfig/issues"
+
+[project.optional-dependencies]
+numpy = ["numpy>=1.22"]
+
+[tool.setuptools]
+packages = ["layeredconfig"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+layeredconfig = ["py.typed"]

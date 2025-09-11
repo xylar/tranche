@@ -26,7 +26,6 @@ from typing import (
     Callable,
 )
 
-import numpy as np
 
 CombinedParser = Union[ConfigParser, RawConfigParser]
 T = TypeVar("T")
@@ -90,11 +89,18 @@ class LayeredConfig:
             "math": LayeredConfig._SafeNamespace({"pi": math.pi}),
         }
         if allow_numpy:
+            try:
+                import numpy as _np  # local import to keep numpy optional
+            except ImportError as e:
+                raise ImportError(
+                    "NumPy is required for allow_numpy=True. Install "
+                    "'layeredconfig[numpy]' to enable this feature."
+                ) from e
             np_ns = LayeredConfig._SafeNamespace(
                 {
-                    "arange": np.arange,
-                    "linspace": np.linspace,
-                    "array": np.array,
+                    "arange": _np.arange,
+                    "linspace": _np.linspace,
+                    "array": _np.array,
                 }
             )
             symbols.update({
