@@ -79,8 +79,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .[docs]
 
-      - name: Build Sphinx HTML
-        run: make -C docs html
+      - name: Build Sphinx HTML (strict)
+        run: make -C docs html-strict
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

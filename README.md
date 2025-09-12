@@ -1,3 +1,5 @@
+![tranche logo](docs/logo/tranche_logo_small.png)
+
 # tranche
 
 ConfigParser with layered precedence, provenance, comment-preserving writes, and safe expressions.

@@ -2,7 +2,7 @@
 title: tranche documentation
 ---
 
-# tranche
+![tranche logo](logo/tranche_logo_small.png)
 
 # tranche
 
