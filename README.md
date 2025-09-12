@@ -1,4 +1,4 @@
-![tranche logo](docs/logo/tranche_logo_small.png)
+![tranche logo](https://raw.githubusercontent.com/xylar/tranche/main/docs/logo/tranche_logo_small.png)
 
 # tranche
 
