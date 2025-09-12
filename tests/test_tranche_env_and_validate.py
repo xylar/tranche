@@ -3,12 +3,12 @@ import tempfile
 
 import pytest
 
-from layeredconfig import LayeredConfig
+from tranche import Tranche
 
 
 def test_env_var_interpolation(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("MY_TEST_VAR", "env_value")
-    cfg: LayeredConfig = LayeredConfig()
+    cfg: Tranche = Tranche()
     with tempfile.NamedTemporaryFile("w+t", delete=False) as f:
         f.write("""
 [main]
@@ -25,7 +25,7 @@ bar = static
 
 
 def test_validation_hook_success() -> None:
-    cfg: LayeredConfig = LayeredConfig()
+    cfg: Tranche = Tranche()
     with tempfile.NamedTemporaryFile("w+t", delete=False) as f:
         f.write("""
 [main]
@@ -47,7 +47,7 @@ bar = abc
 
 
 def test_validation_hook_failure() -> None:
-    cfg: LayeredConfig = LayeredConfig()
+    cfg: Tranche = Tranche()
     with tempfile.NamedTemporaryFile("w+t", delete=False) as f:
         f.write("""
 [main]

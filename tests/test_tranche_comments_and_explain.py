@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from layeredconfig.layeredconfig import LayeredConfig
+from tranche.tranche import Tranche
 
 
 def write_tmp_cfg(tmp_path: Path, name: str, contents: str) -> str:
@@ -33,7 +33,7 @@ def test_write_preserves_comments_and_sources(tmp_path: Path) -> None:
         """,
     )
 
-    cfg = LayeredConfig()
+    cfg = Tranche()
     cfg.add_from_file(base)
 
     out = io.StringIO()
@@ -69,7 +69,7 @@ def test_write_toggle_include_flags(tmp_path: Path) -> None:
         """,
     )
 
-    cfg = LayeredConfig()
+    cfg = Tranche()
     cfg.add_from_file(path)
 
     # no sources
@@ -106,7 +106,7 @@ def test_explain_base_only_and_multiple_bases(tmp_path: Path) -> None:
         """,
     )
 
-    cfg = LayeredConfig()
+    cfg = Tranche()
     cfg.add_from_file(base1)
     cfg.add_from_file(base2)  # later base should take precedence for x
 
@@ -133,7 +133,7 @@ def test_explain_missing_section_and_option(tmp_path: Path) -> None:
         """,
     )
 
-    cfg = LayeredConfig()
+    cfg = Tranche()
     cfg.add_from_file(path)
 
     # missing option in existing section -> NoOptionError

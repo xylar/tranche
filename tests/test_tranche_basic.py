@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from layeredconfig.layeredconfig import LayeredConfig
+from tranche.tranche import Tranche
 
 
 def write_tmp_cfg(tmp_path: Path, name: str, contents: str) -> str:
@@ -24,7 +24,7 @@ def test_add_and_get_from_file(tmp_path: Path) -> None:
         """,
     )
 
-    cfg = LayeredConfig()
+    cfg = Tranche()
     cfg.add_from_file(base)
 
     assert cfg.get("general", "answer") == "41"
@@ -51,7 +51,7 @@ def test_user_config_precedence(tmp_path: Path) -> None:
         """,
     )
 
-    cfg = LayeredConfig()
+    cfg = Tranche()
     cfg.add_from_file(base)
     cfg.add_user_config(user)
 
@@ -72,7 +72,7 @@ def test_getlist_and_getexpression(tmp_path: Path) -> None:
         """,
     )
 
-    cfg = LayeredConfig()
+    cfg = Tranche()
     cfg.add_from_file(cfg_path)
 
     assert cfg.getlist("nums", "ints", int) == [1, 2, 3]
@@ -99,7 +99,7 @@ def test_explain_reports_source(tmp_path: Path) -> None:
         """,
     )
 
-    cfg = LayeredConfig()
+    cfg = Tranche()
     cfg.add_from_file(base)
     cfg.add_user_config(user)
 
@@ -110,7 +110,7 @@ def test_explain_reports_source(tmp_path: Path) -> None:
 
 
 def test_set_and_write_roundtrip(tmp_path: Path) -> None:
-    cfg = LayeredConfig()
+    cfg = Tranche()
     cfg.set("sec", "opt", "val", comment="hello")
 
     out = io.StringIO()
@@ -132,7 +132,7 @@ def test_safe_eval_with_numpy_disabled(tmp_path: Path) -> None:
         """,
     )
 
-    cfg = LayeredConfig()
+    cfg = Tranche()
     cfg.add_from_file(cfg_path)
 
     # safe backend without numpy should work for pure literals
@@ -153,7 +153,7 @@ def test_getexpression_dtype_casting(tmp_path: Path, backend: str, dtype: type) 
         """,
     )
 
-    cfg = LayeredConfig()
+    cfg = Tranche()
     cfg.add_from_file(cfg_path)
 
     res = cfg.getexpression("vals", "arr", backend=backend, dtype=dtype)
@@ -183,7 +183,7 @@ def test_extended_interpolation_section_option(tmp_path: Path) -> None:
         baz = ${base:bar} world
         """,
     )
-    cfg = LayeredConfig()
+    cfg = Tranche()
     cfg.add_from_file(cfg_path)
     assert cfg.get("base", "bar") == "hello"
     assert cfg.get("base", "baz") == "hello world"
@@ -202,7 +202,7 @@ def test_safe_eval_rejects_dunder_and_nonwhitelisted_attr(
         val3 = (1).real
         """,
     )
-    cfg = LayeredConfig()
+    cfg = Tranche()
     cfg.add_from_file(cfg_path)
     # Dunder name usage should be rejected
     with pytest.raises(ValueError):

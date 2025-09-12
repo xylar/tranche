@@ -2,13 +2,13 @@
 title: Releasing on PyPI
 ---
 
-# Releasing layeredconfig on PyPI (via CI)
+# Releasing tranche on PyPI (via CI)
 
 Releases are published by GitHub Actions. You generally don’t need to build or upload locally.
 
 ## Prerequisites (one-time)
 
-- Choose a unique PyPI distribution name in `pyproject.toml` (`[project].name`). The name “layeredconfig” is already taken on PyPI.
+- Choose a unique PyPI distribution name in `pyproject.toml` (`[project].name`).
 - Configure publishing auth (choose one):
   - API tokens: add repo secrets `PYPI_API_TOKEN` and (optional) `TEST_PYPI_API_TOKEN`.
   - Trusted Publishing (OIDC): enable a Trusted Publisher on PyPI. The workflow already grants `id-token: write`. If PyPI asks for an “Environment name,” use `pypi` (the workflow sets it by default, and `testpypi` for manual TestPyPI runs).
@@ -16,12 +16,12 @@ Releases are published by GitHub Actions. You generally don’t need to build or
 
 ## Normal release flow
 
-1) Bump the version in `layeredconfig/version.py` and commit.
+1) Bump the version in `tranche/version.py` and commit.
 
 2) Tag the release (no leading `v`) and push the tag:
 
 ```bash
-git tag -a 0.1.1 -m "layeredconfig 0.1.1"
+git tag -a 0.1.1 -m "tranche 0.1.1"
 git push origin 0.1.1
 ```
 

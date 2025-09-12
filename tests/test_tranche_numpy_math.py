@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from layeredconfig.layeredconfig import LayeredConfig
+from tranche.tranche import Tranche
 
 
 def write_tmp_cfg(tmp_path: Path, name: str, contents: str) -> str:
@@ -24,7 +24,7 @@ def test_safe_eval_math_pi_and_name(tmp_path: Path) -> None:
         """,
     )
 
-    cfg = LayeredConfig()
+    cfg = Tranche()
     cfg.add_from_file(cfg_path)
 
     # math namespace exposes only pi by default
@@ -43,7 +43,7 @@ def test_safe_eval_math_no_sqrt_by_default(tmp_path: Path) -> None:
         """,
     )
 
-    cfg = LayeredConfig()
+    cfg = Tranche()
     cfg.add_from_file(cfg_path)
 
     with pytest.raises(NameError):
@@ -60,7 +60,7 @@ def test_safe_eval_register_math_function(tmp_path: Path) -> None:
         """,
     )
 
-    cfg = LayeredConfig()
+    cfg = Tranche()
     cfg.add_from_file(cfg_path)
     cfg.register_symbol("sqrt", math.sqrt)
 
@@ -77,7 +77,7 @@ def test_numpy_disabled_raises_for_np_usage(tmp_path: Path) -> None:
         """,
     )
 
-    cfg = LayeredConfig()
+    cfg = Tranche()
     cfg.add_from_file(cfg_path)
 
     # With numpy not allowed, attempting to use np should fail
@@ -99,7 +99,7 @@ def test_safe_eval_with_numpy_enabled(tmp_path: Path) -> None:
         """,
     )
 
-    cfg = LayeredConfig()
+    cfg = Tranche()
     cfg.add_from_file(cfg_path)
 
     a = cfg.getexpression("expr", "a", backend="safe", allow_numpy=True)

@@ -1,8 +1,8 @@
 ---
-title: layeredconfig documentation
+title: tranche documentation
 ---
 
-# layeredconfig
+# tranche
 
 ConfigParser with layered precedence, provenance, comment-preserving writes, and safe expressions.
 
@@ -20,5 +20,5 @@ api/index
 
 ## Links
 
-- Source: https://github.com/xylar/layeredconfig
-- Issues: https://github.com/xylar/layeredconfig/issues
+- Source: https://github.com/xylar/tranche
+- Issues: https://github.com/xylar/tranche/issues
