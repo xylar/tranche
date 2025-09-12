@@ -4,7 +4,14 @@ title: tranche documentation
 
 # tranche
 
-ConfigParser with layered precedence, provenance, comment-preserving writes, and safe expressions.
+# tranche
+
+ConfigParser with layered precedence, provenance, comment-preserving writes,
+and safe expressions.
+
+The name **tranche** comes from the French word for *slice* — a nod to how the
+library lets you cut cleanly through multiple configuration layers to get a
+single, effective view of your settings.
 
 ## Contents
 
