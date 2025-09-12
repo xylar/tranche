@@ -66,5 +66,4 @@ jobs:
 # - Set repository secrets PYPI_API_TOKEN and TEST_PYPI_API_TOKEN (API tokens starting with 'pypi-').
 # - Create a GitHub Release (or push a tag like 0.1.0) to publish to PyPI.
 # - Or run this workflow manually and choose 'testpypi' or 'pypi' as the target.
-# Note: The project name 'layeredconfig' is taken on PyPI. Use a unique distribution name
-# in pyproject.toml or configure a different target project before publishing.
+

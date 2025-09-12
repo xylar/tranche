@@ -12,7 +12,6 @@ from configparser import (
     SectionProxy,
 )
 from importlib.resources import files as imp_res_files
-from io import StringIO
 from re import Match
 from types import ModuleType
 from typing import Any, TextIO, TypeVar, cast
@@ -21,7 +20,7 @@ CombinedParser = ConfigParser | RawConfigParser
 T = TypeVar("T")
 
 
-class LayeredConfig:
+class Tranche:
     """
     A "meta" config parser that keeps a dictionary of config parsers and their
     sources to combine when needed.  The custom config parser allows provenance
@@ -31,7 +30,7 @@ class LayeredConfig:
 
     Example
     -------
-    >>> config = LayeredConfig()
+    >>> config = Tranche()
     >>> config.add_from_file('default.cfg')
     >>> config.add_user_config('user.cfg')
     >>> value = config.get('section', 'option')
@@ -76,7 +75,7 @@ class LayeredConfig:
             "pi": math.pi,
             # Expose 'math' with only 'pi' to start;
             # extend later via register_symbol
-            "math": LayeredConfig._SafeNamespace({"pi": math.pi}),
+            "math": Tranche._SafeNamespace({"pi": math.pi}),
         }
         if allow_numpy:
             try:
@@ -84,9 +83,9 @@ class LayeredConfig:
             except ImportError as e:
                 raise ImportError(
                     "NumPy is required for allow_numpy=True. Install "
-                    "'layeredconfig[numpy]' to enable this feature."
+                    "'tranche[numpy]' to enable this feature."
                 ) from e
-            np_ns = LayeredConfig._SafeNamespace(
+            np_ns = Tranche._SafeNamespace(
                 {
                     "arange": _np.arange,
                     "linspace": _np.linspace,
@@ -130,7 +129,7 @@ class LayeredConfig:
 
         tree = ast.parse(expression, mode="eval")
 
-        symbols = LayeredConfig._default_symbols(allow_numpy)
+        symbols = Tranche._default_symbols(allow_numpy)
         # Merge any user-registered symbols (simple names only)
         if extra_symbols:
             for key, val in extra_symbols.items():
@@ -173,7 +172,7 @@ class LayeredConfig:
                 return symbols[node.id]
             if isinstance(node, ast.Attribute):
                 value = eval_node(node.value)
-                if not isinstance(value, LayeredConfig._SafeNamespace):
+                if not isinstance(value, Tranche._SafeNamespace):
                     raise ValueError("Attribute access only allowed on safe namespaces")
                 return getattr(value, node.attr)
             if isinstance(node, ast.Call):
@@ -491,7 +490,7 @@ class LayeredConfig:
         if backend == "literal":
             result = ast.literal_eval(expression_string)
         elif backend == "safe":
-            result = LayeredConfig._safe_eval(
+            result = Tranche._safe_eval(
                 expression_string,
                 allow_numpy=allow_numpy,
                 extra_symbols=self._extra_symbols,
@@ -526,7 +525,7 @@ class LayeredConfig:
         Register a stdlib function (math.sqrt) and call it from the config:
 
         >>> import math
-        >>> config = LayeredConfig()
+        >>> config = Tranche()
         >>> config.register_symbol('sqrt', math.sqrt)
         >>> # INI has:
         >>> #  [calc]
@@ -734,26 +733,26 @@ class LayeredConfig:
         filenames = list(self._configs.keys()) + list(self._user_config.keys())
         return filenames
 
-    def copy(self) -> "LayeredConfig":
+    def copy(self) -> "Tranche":
         """
         Get a deep copy of the config parser
 
         Returns
         -------
-        config_copy : layeredconfig.LayeredConfig
+        config_copy : tranche.Tranche
             The deep copy
         """
-        config_copy = LayeredConfig()
+        config_copy = Tranche()
         for filename, config in self._configs.items():
-            config_copy._configs[filename] = LayeredConfig._deepcopy(config)
+            config_copy._configs[filename] = Tranche._deepcopy(config)
 
         for filename, config in self._user_config.items():
-            config_copy._user_config[filename] = LayeredConfig._deepcopy(config)
+            config_copy._user_config[filename] = Tranche._deepcopy(config)
 
         config_copy._comments = dict(self._comments)
         return config_copy
 
-    def append(self, other: "LayeredConfig") -> None:
+    def append(self, other: "Tranche") -> None:
         """
         Append a deep copy of another config parser to this one.  Config
         options from ``other`` will take precedence over those from this config
@@ -761,7 +760,7 @@ class LayeredConfig:
 
         Parameters
         ----------
-        other : layeredconfig.LayeredConfig
+        other : tranche.Tranche
                 The other, higher priority config parser
         """
         other = other.copy()
@@ -772,7 +771,7 @@ class LayeredConfig:
         self.combined_comments = None
         self.sources = None
 
-    def prepend(self, other: "LayeredConfig") -> None:
+    def prepend(self, other: "Tranche") -> None:
         """
         Prepend a deep copy of another config parser to this one.  Config
         options from this config parser will take precedence over those from
@@ -780,7 +779,7 @@ class LayeredConfig:
 
         Parameters
         ----------
-        other : layeredconfig.LayeredConfig
+        other : tranche.Tranche
                 The other, higher priority config parser
         """
         other = other.copy()
@@ -854,28 +853,28 @@ class LayeredConfig:
 
     def validate(self, validator: Callable[[dict[str, dict[str, str]]], None]) -> None:
         """
-        Call a user-provided validator function on the config as a nested dict.
+            Call a user-provided validator function on the config as a nested dict.
 
-        The validator is called with a dictionary of the form:
-            {section: {option: value, ...}, ...}
-        where all values are strings as returned by `get()`.
+            The validator is called with a dictionary of the form:
+                {section: {option: value, ...}, ...}
+            where all values are strings as returned by `get()`.
 
-        This allows integration with validation libraries such as Pydantic or
-        voluptuous, or custom validation logic. If the validator raises an exception,
-        it will propagate to the caller.
+            This allows integration with validation libraries such as Pydantic or
+        voluptuous, or custom validation logic. If the validator raises an
+        exception, it will propagate to the caller.
 
-        Parameters
-        ----------
-        validator : Callable[[dict[str, dict[str, str]]], None]
-            A function that takes a nested dictionary of config values and raises
-            on error.
+            Parameters
+            ----------
+            validator : Callable[[dict[str, dict[str, str]]], None]
+                A function that takes a nested dictionary of config values and
+                raises on error.
 
-        Examples
-        --------
-        >>> def my_validator(cfg):
-        ...     assert 'main' in cfg
-        ...     assert 'foo' in cfg['main']
-        >>> config.validate(my_validator)
+            Examples
+            --------
+            >>> def my_validator(cfg):
+            ...     assert 'main' in cfg
+            ...     assert 'foo' in cfg['main']
+            >>> config.validate(my_validator)
         """
         if self.combined is None:
             self.combine()
@@ -998,36 +997,23 @@ class LayeredConfig:
                                 comments[(section_name, option_name)] = current_comment
 
                     option_name = value[:delimiter_index].strip().lower()
-
-                    if (
-                        comments_before
-                        and section_name is not None
-                        and option_name is not None
-                    ):
+                    if comments_before and section_name is not None:
                         comments[(section_name, option_name)] = current_comment
                     current_comment = ''
 
+        if not comments_before:
+            if section_name is not None:
+                comments[section_name] = current_comment
+            if section_name is not None and option_name is not None:
+                comments[(section_name, option_name)] = current_comment
         return comments
 
     @staticmethod
-    def _deepcopy(config: ConfigParser | RawConfigParser) -> ConfigParser:
-        """
-        Make a deep copy of the ConfigParser object.
-
-        Parameters
-        ----------
-        config : configparser.ConfigParser
-            The config parser to copy.
-
-        Returns
-        -------
-        new_config : configparser.ConfigParser
-            A deep copy of the config parser.
-        """
-        config_string = StringIO()
-        config.write(config_string)
-        # We must reset the buffer to make it ready for reading.
-        config_string.seek(0)
-        new_config = ConfigParser()
-        new_config.read_file(config_string)
-        return new_config
+    def _deepcopy(config: RawConfigParser) -> RawConfigParser:
+        config_copy = RawConfigParser()
+        for section in config.sections():
+            if not config_copy.has_section(section):
+                config_copy.add_section(section)
+            for option, value in config.items(section):
+                config_copy.set(section, option, value)
+        return config_copy

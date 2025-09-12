@@ -1,8 +1,11 @@
-# layeredconfig
+````markdown
+# tranche
 
 ```{eval-rst}
-.. automodule:: layeredconfig
+.. automodule:: tranche
     :members:
     :undoc-members:
     :show-inheritance:
 ```
+
+````

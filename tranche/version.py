@@ -1,7 +1,7 @@
 """Package version information.
 
 This module holds the single source of truth for the package version.
-Build backends read layeredconfig.version.__version__ via pyproject.
+Build backends read tranche.version.__version__ via pyproject.
 """
 
 __all__ = ["__version__"]

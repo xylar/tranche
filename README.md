@@ -1,23 +1,27 @@
-# layeredconfig
+# tranche
 
 ConfigParser with layered precedence, provenance, comment-preserving writes, and safe expressions.
 
+The name **tranche** comes from the French word for *slice* — a nod to how the
+library lets you cut cleanly through multiple configuration layers to get a
+single, effective view of your settings.
+
 ## Documentation
 
-Full docs: https://xylar.github.io/layeredconfig/
+Full docs: https://xylar.github.io/tranche/
 
 ## Install
 
 - From PyPI (no NumPy):
 
 ```bash
-pip install layeredconfig
+pip install tranche
 ```
 
 - With NumPy extras (to enable safe NumPy expressions):
 
 ```bash
-pip install layeredconfig[numpy]
+pip install tranche[numpy]
 ```
 
 - From source (local checkout):
@@ -29,9 +33,9 @@ pip install .
 ## Quick start
 
 ```python
-from layeredconfig import LayeredConfig
+from tranche import Tranche
 
-config = LayeredConfig()
+config = Tranche()
 config.add_from_file("defaults.cfg")
 config.add_user_config("user.cfg")
 
@@ -66,9 +70,9 @@ config.register_symbol("sqrt", math.sqrt)
 
 ## Links
 
-- Docs: https://xylar.github.io/layeredconfig/
-- Source: https://github.com/xylar/layeredconfig
-- Issues: https://github.com/xylar/layeredconfig/issues
+- Docs: https://xylar.github.io/tranche/
+- Source: https://github.com/xylar/tranche
+- Issues: https://github.com/xylar/tranche/issues
 
 ## License
 

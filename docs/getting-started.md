@@ -7,15 +7,15 @@ This library builds layered configuration files with provenance and safe express
 Optional NumPy support can be installed via the extra:
 
 ```
-pip install layeredconfig[numpy]
+pip install tranche[numpy]
 ```
 
 ## Quick example
 
 ```python
-from layeredconfig import LayeredConfig
+from tranche import Tranche
 
-cfg = LayeredConfig()
+cfg = Tranche()
 # Add files in order of increasing precedence
 cfg.add_from_file('defaults.cfg')
 cfg.add_user_config('user.cfg')
@@ -28,11 +28,11 @@ print(value)
 
 - Add base files with `add_from_file(...)` in order; later base files can override earlier base files.
 - Add a user file with `add_user_config(...)`; user values always take precedence over base files.
-- You can combine two LayeredConfig objects:
+- You can combine two Tranche objects:
 
 ```python
-higher = LayeredConfig(); higher.add_from_file('override.cfg')
-lower = LayeredConfig(); lower.add_from_file('base.cfg')
+higher = Tranche(); higher.add_from_file('override.cfg')
+lower = Tranche(); lower.add_from_file('base.cfg')
 lower.append(higher)  # entries from 'higher' win
 ```
 

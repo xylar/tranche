@@ -2,15 +2,15 @@
 title: Why not just use configparser/ConfigUpdater/ConfigObj?
 ---
 
-# Why layeredconfig?
+# Why tranche?
 
-layeredconfig builds on Python's configparser but adds a few capabilities that are hard to get elsewhere in one place: multi-file layering with precedence, provenance, safe expression evaluation (optional NumPy), interpolation, and comment-preserving writes.
+`tranche` builds on Python's `configparser` but adds a few capabilities that are hard to get elsewhere in one place: multi-file layering with precedence, provenance, safe expression evaluation (optional NumPy), interpolation, and comment-preserving writes.
 
 ## Comparison
 
 Legend: ✓ supported · ✗ not supported · — not applicable
 
-| Feature | configparser | ConfigUpdater | ConfigObj | layeredconfig |
+| Feature | configparser | ConfigUpdater | ConfigObj | tranche |
 | --- | :---: | :---: | :---: | :---: |
 | Multi-file layering with explicit user precedence | ✗ | ✗ | ✗ | ✓ |
 | Provenance (where did this value come from?) | ✗ | ✗ | ✗ | ✓ |
@@ -29,9 +29,9 @@ Notes:
 Example: merge defaults, site, and user config files with user taking precedence.
 
 ```python
-from layeredconfig import LayeredConfig
+from tranche import Tranche
 
-cfg = LayeredConfig()
+cfg = Tranche()
 cfg.add_from_file('defaults.cfg')   # shipped with package
 cfg.add_from_file('/etc/myapp.cfg') # site‑wide
 cfg.add_user_config('~/.config/myapp.cfg')  # highest precedence
@@ -40,11 +40,11 @@ cfg.add_user_config('~/.config/myapp.cfg')  # highest precedence
 val = cfg.get('general', 'output_dir')
 ```
 
-You can also combine two LayeredConfig objects explicitly:
+You can also combine two Tranche objects explicitly:
 
 ```python
-higher = LayeredConfig(); higher.add_from_file('override.cfg')
-lower = LayeredConfig(); lower.add_from_file('base.cfg')
+higher = Tranche(); higher.add_from_file('override.cfg')
+lower = Tranche(); lower.add_from_file('base.cfg')
 lower.append(higher)  # values from 'higher' win
 ```
 

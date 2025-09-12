@@ -1,16 +1,16 @@
 """
-Sphinx configuration for layeredconfig documentation.
+Sphinx configuration for tranche documentation.
 
 Uses MyST Markdown, autodoc, and autosummary to generate API docs.
 """
 import importlib.util as _importlib_util
 from datetime import datetime
-import layeredconfig as _pkg
+import tranche as _pkg
 
 
 # -- Project information -----------------------------------------------------
 
-project = "layeredconfig"
+project = "tranche"
 author = "Xylar Asay-Davis"
 copyright = f"{datetime.now().year}, {author}"
 release = str(_pkg.__version__)
