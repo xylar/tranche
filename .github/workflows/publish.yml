@@ -50,14 +50,18 @@ jobs:
           user: __token__
           password: ${{ secrets.TEST_PYPI_API_TOKEN }}
           repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
 
       # Publish to PyPI on release/tag, or manual dispatch to PyPI
       - name: Publish to PyPI
         if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.repository == 'pypi')
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          user: __token__
-          password: ${{ secrets.PYPI_API_TOKEN }}
+          # Use Trusted Publishing via OIDC (no username/password). Ensure TP is configured
+          # for this repo/workflow in PyPI project settings. See:
+          # https://docs.pypi.org/trusted-publishers/using-a-publisher/
+          skip-existing: true
+          attestations: true
 
 # Usage:
 # - Set repository secrets PYPI_API_TOKEN and TEST_PYPI_API_TOKEN (API tokens starting with 'pypi-').
