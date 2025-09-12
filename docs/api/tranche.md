@@ -1,4 +1,3 @@
-````markdown
 # tranche
 
 ```{eval-rst}
@@ -7,5 +6,3 @@
     :undoc-members:
     :show-inheritance:
 ```
-
-````

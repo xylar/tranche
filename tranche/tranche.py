@@ -853,28 +853,30 @@ class Tranche:
 
     def validate(self, validator: Callable[[dict[str, dict[str, str]]], None]) -> None:
         """
-            Call a user-provided validator function on the config as a nested dict.
+        Call a user-provided validator function on the config as a nested dict.
 
-            The validator is called with a dictionary of the form:
-                {section: {option: value, ...}, ...}
-            where all values are strings as returned by `get()`.
+        The validator is called with a dictionary of the form:
 
-            This allows integration with validation libraries such as Pydantic or
+            {section: {option: value, ...}, ...}
+
+        where all values are strings as returned by `get()`.
+
+        This allows integration with validation libraries such as Pydantic or
         voluptuous, or custom validation logic. If the validator raises an
         exception, it will propagate to the caller.
 
-            Parameters
-            ----------
-            validator : Callable[[dict[str, dict[str, str]]], None]
-                A function that takes a nested dictionary of config values and
-                raises on error.
+        Parameters
+        ----------
+        validator : Callable[[dict[str, dict[str, str]]], None]
+            A function that takes a nested dictionary of config values and
+            raises on error.
 
-            Examples
-            --------
-            >>> def my_validator(cfg):
-            ...     assert 'main' in cfg
-            ...     assert 'foo' in cfg['main']
-            >>> config.validate(my_validator)
+        Examples
+        --------
+        >>> def my_validator(cfg):
+        ...     assert 'main' in cfg
+        ...     assert 'foo' in cfg['main']
+        >>> config.validate(my_validator)
         """
         if self.combined is None:
             self.combine()
