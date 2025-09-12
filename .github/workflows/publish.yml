@@ -3,9 +3,6 @@ name: Build and publish to PyPI
 on:
   release:
     types: [published]
-  push:
-    tags:
-      - '*.*.*'
   workflow_dispatch:
     inputs:
       repository:
@@ -56,7 +53,7 @@ jobs:
 
       # Publish to PyPI on release/tag, or manual dispatch to PyPI
       - name: Publish to PyPI
-        if: github.event_name == 'release' || github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.repository == 'pypi')
+        if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.repository == 'pypi')
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           user: __token__
@@ -64,6 +61,6 @@ jobs:
 
 # Usage:
 # - Set repository secrets PYPI_API_TOKEN and TEST_PYPI_API_TOKEN (API tokens starting with 'pypi-').
-# - Create a GitHub Release (or push a tag like 0.1.0) to publish to PyPI.
+# - Create a GitHub Release for tag (e.g., 0.1.0) to publish to PyPI.
 # - Or run this workflow manually and choose 'testpypi' or 'pypi' as the target.
 
