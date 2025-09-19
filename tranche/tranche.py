@@ -454,7 +454,7 @@ class Tranche:
         section: str,
         option: str,
         dtype: type | None = None,
-        backend: str = "literal",
+        backend: str | None = None,
         allow_numpy: bool = False,
     ) -> Any:
         """
@@ -477,8 +477,9 @@ class Tranche:
             most useful for ensuring that all elements in a list of numbers are
             of type float, rather than int, when the distinction is important.
 
-        backend : {"literal", "safe"}
-            - "literal": use ast.literal_eval (default, safest)
+        backend : {"literal", "safe"} or None
+            - None (default): choose "safe" if allow_numpy=True else "literal".
+            - "literal": use ast.literal_eval (safest, literals only)
             - "safe": use a whitelisted AST evaluator optionally allowing numpy
 
         allow_numpy : bool, optional
@@ -486,6 +487,10 @@ class Tranche:
             (np.arange, np.linspace, np.array) under names "np"/"numpy".
         """  # noqa: E501
         expression_string = self.get(section, option)
+
+        # Adaptive backend selection
+        if backend is None:
+            backend = "safe" if allow_numpy else "literal"
 
         if backend == "literal":
             result = ast.literal_eval(expression_string)
@@ -508,6 +513,38 @@ class Tranche:
                     result[key] = dtype(result[key])
 
         return result
+
+    # Convenience helper for numpy-enabled expressions
+    def getnumpy(
+        self,
+        section: str,
+        option: str,
+        dtype: type | None = None,
+        backend: str | None = None,
+    ) -> Any:
+        """Shortcut for expressions requiring NumPy.
+
+        Equivalent to ``getexpression(..., allow_numpy=True)`` with adaptive
+        backend selection (safe if backend is None).
+
+        Parameters
+        ----------
+        section : str
+            Section name.
+        option : str
+            Option name.
+        dtype : type, optional
+            Cast list/tuple/dict elements to this type.
+        backend : {"literal", "safe"} or None, optional
+            Override backend.  None => choose "safe".
+        """
+        return self.getexpression(
+            section,
+            option,
+            dtype=dtype,
+            backend=backend,
+            allow_numpy=True,
+        )
 
     def register_symbol(self, name: str, obj: Any) -> None:
         """
