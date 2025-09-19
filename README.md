@@ -44,11 +44,14 @@ config.add_user_config("user.cfg")
 # Simple values
 value = config.get("core", "option")
 
-# Expression (literal)
-points = config.getexpression("plot", "ticks", backend="literal")
+# Expression (literal backend chosen automatically)
+points = config.getexpression("plot", "ticks")
 
-# Expression (safe with numpy)
-arr = config.getexpression("plot", "bins", backend="safe", allow_numpy=True)
+# NumPy expression (auto-selects safe backend because allow_numpy=True)
+arr = config.getexpression("plot", "bins", allow_numpy=True)
+
+# Or via convenience helper
+arr2 = config.getnumpy("plot", "bins")
 
 # Provenance
 info = config.explain("plot", "bins")
