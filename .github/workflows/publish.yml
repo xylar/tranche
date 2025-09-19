@@ -13,6 +13,16 @@ on:
         options:
           - testpypi
           - pypi
+      dry-run:
+        description: 'Build & validate only (no upload)'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['false','true']
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build-and-publish:
@@ -21,7 +31,7 @@ jobs:
       name: ${{ github.event_name == 'workflow_dispatch' && inputs.repository == 'testpypi' && 'testpypi' || 'pypi' }}
     permissions:
       contents: read
-      id-token: write  # Enables Trusted Publishing if configured on PyPI
+      id-token: write  # Needed for Trusted Publishing (even if attestations disabled)
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -31,40 +41,118 @@ jobs:
         with:
           python-version: '3.x'
 
-      - name: Install build tooling
+      - name: Install build & publish tooling
         run: |
           python -m pip install --upgrade pip
           pip install build twine
 
-      - name: Build sdist and wheel
+      - name: Extract version
+        id: get_version
+        run: |
+          set -euo pipefail
+          python -c "import runpy, pathlib; ver=runpy.run_path('tranche/version.py')['__version__']; print(f'version={ver}'); pathlib.Path('VERSION').write_text(ver)"
+          echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
+
+      - name: "Preflight (release): tag matches code version"
+        if: github.event_name == 'release'
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          CODE_VER="$(cat VERSION)"
+          if [ "$TAG" != "$CODE_VER" ]; then
+            echo "Tag ($TAG) does not match tranche/version.py ($CODE_VER)" >&2
+            exit 1
+          fi
+          echo "Tag/version match: $TAG"
+
+      - name: Build sdist & wheel
         run: python -m build
 
       - name: Check package metadata
         run: python -m twine check dist/*
 
-      # Manual dispatch to TestPyPI
-      - name: Publish to TestPyPI
+      - name: "Preflight: version visibility on PyPI (informational)"
+        id: pypi_visibility
+        run: |
+          set -euo pipefail
+          V="$(cat VERSION)"
+          FOUND=$(curl -fsS https://pypi.org/pypi/tranche/json | python -c "import sys,json; import os; d=json.load(sys.stdin); v=os.environ.get('V'); print(1 if v in d.get('releases',{}) else 0)" ) || FOUND=0
+          if [ "$FOUND" = "1" ]; then
+            echo "Version $V currently visible on PyPI."; echo "visible=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Version $V not visible on PyPI (good or was never uploaded)."; echo "visible=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Abort if visible version on release
+        if: github.event_name == 'release' && steps.pypi_visibility.outputs.visible == 'true'
+        run: |
+          echo "Refusing to upload: version already present on PyPI. Bump version." >&2
+          exit 1
+
+      - name: Optional settle delay
+        if: github.event_name == 'release'
+        run: sleep 12
+
+      - name: Diagnostics (pre-upload)
+        run: |
+          set -e
+          python -c "import json,os,platform,datetime; data={'event':os.getenv('GITHUB_EVENT_NAME'),'ref':os.getenv('GITHUB_REF'),'ref_name':os.getenv('GITHUB_REF_NAME'),'version':open('VERSION').read().strip(),'runner_os':os.getenv('RUNNER_OS'),'python':platform.python_version(),'time_utc':datetime.datetime.utcnow().isoformat()+'Z'}; open('publish-diagnostics.json','w').write(json.dumps(data,indent=2)); print(json.dumps(data,indent=2))"
+
+      - name: Dry run stop
+        if: github.event_name == 'workflow_dispatch' && inputs.dry-run == 'true'
+        run: echo "Dry run requested; skipping upload." && exit 0
+
+      - name: Upload to TestPyPI (manual)
         if: github.event_name == 'workflow_dispatch' && inputs.repository == 'testpypi'
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          user: __token__
-          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
-          repository-url: https://test.pypi.org/legacy/
-          skip-existing: true
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          twine upload --skip-existing --verbose --repository-url https://test.pypi.org/legacy/ dist/*
 
-      # Publish to PyPI on release/tag, or manual dispatch to PyPI
-      - name: Publish to PyPI
+      - name: Upload to PyPI (manual, attestations disabled temporarily)
         if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.repository == 'pypi')
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          # Use Trusted Publishing via OIDC (no username/password). Ensure TP is configured
-          # for this repo/workflow in PyPI project settings. See:
-          # https://docs.pypi.org/trusted-publishers/using-a-publisher/
-          skip-existing: true
-          attestations: true
+        env:
+          # Trusted Publishing: username/password not needed; twine will use OIDC token via pypi token issuance.
+          # Leaving env empty here intentionally.
+          TWINE_NON_INTERACTIVE: 1
+        run: |
+          set -euo pipefail
+          echo "Starting twine upload (verbose)"
+          # First attempt
+          if twine upload --skip-existing --verbose dist/*; then
+            echo "Upload succeeded."; exit 0
+          fi
+          STATUS=$?
+          echo "Initial upload command exited with status $STATUS" >&2
+          # Inspect log for filename reuse
+          # (GitHub Actions captures stdout/stderr; here we just provide guidance.)
+          echo "If error was 'filename has already been used', bump version (current $(cat VERSION))." >&2
+          exit $STATUS
 
-# Usage:
-# - Set repository secrets PYPI_API_TOKEN and TEST_PYPI_API_TOKEN (API tokens starting with 'pypi-').
-# - Create a GitHub Release for tag (e.g., 0.1.0) to publish to PyPI.
-# - Or run this workflow manually and choose 'testpypi' or 'pypi' as the target.
+      - name: Upload diagnostics artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: publish-diagnostics
+          path: |
+            publish-diagnostics.json
+            dist/*
+          if-no-files-found: ignore
+
+      - name: Summary
+        if: always()
+        env:
+          VISIBLE: ${{ steps.pypi_visibility.outputs.visible }}
+        run: |
+          echo "## Publish summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "Version: $(cat VERSION)" >> "$GITHUB_STEP_SUMMARY"
+          echo "Event: $GITHUB_EVENT_NAME" >> "$GITHUB_STEP_SUMMARY"
+          echo "Visible on PyPI before upload: ${VISIBLE}" >> "$GITHUB_STEP_SUMMARY"
+
+# Notes:
+# - Attestations deliberately disabled for now to rule out timing interaction.
+# - Re-enable later by returning to pypa/gh-action-pypi-publish or adding a sigstore attest step after successful upload.
+# - Use workflow_dispatch with dry-run=true to validate build before tagging a release.
 
