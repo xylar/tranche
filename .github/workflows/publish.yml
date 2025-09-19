@@ -68,8 +68,14 @@ jobs:
       - name: Build sdist & wheel
         run: python -m build
 
+      - name: Record artifact checksums
+        run: |
+          set -euo pipefail
+          sha256sum dist/* > dist/SHA256SUMS.txt
+          cat dist/SHA256SUMS.txt
+
       - name: Check package metadata
-        run: python -m twine check dist/*
+        run: python -m twine check dist/*.whl dist/*.tar.gz
 
       - name: "Preflight: version visibility on PyPI (informational)"
         id: pypi_visibility
@@ -120,16 +126,53 @@ jobs:
         run: |
           set -euo pipefail
           echo "Starting twine upload (verbose)"
-          # First attempt
-          if twine upload --skip-existing --verbose dist/*; then
-            echo "Upload succeeded."; exit 0
+          # Upload WITHOUT --skip-existing so a reuse error becomes a hard failure.
+          # Capture full log
+          # Only upload actual distribution archives (exclude checksum text file)
+          if twine upload --verbose dist/*.whl dist/*.tar.gz 2>&1 | tee upload.log; then
+            echo "upload_exit=0" >> $GITHUB_OUTPUT
+          else
+            CODE=$?
+            echo "upload_exit=$CODE" >> $GITHUB_OUTPUT
+            if grep -i "filename has already been used" upload.log >/dev/null; then
+              echo "Detected filename reuse error on first attempt (version $(cat VERSION))." >&2
+              echo "failure_type=reuse" >> $GITHUB_OUTPUT
+            else
+              echo "failure_type=other" >> $GITHUB_OUTPUT
+            fi
+            exit $CODE
           fi
-          STATUS=$?
-          echo "Initial upload command exited with status $STATUS" >&2
-          # Inspect log for filename reuse
-          # (GitHub Actions captures stdout/stderr; here we just provide guidance.)
-          echo "If error was 'filename has already been used', bump version (current $(cat VERSION))." >&2
-          exit $STATUS
+
+      - name: "Post-upload: poll for version visibility"
+        if: github.event_name == 'release'
+        id: post_visibility
+        run: |
+          set -euo pipefail
+          V=$(cat VERSION)
+          echo "Polling PyPI for version $V visibility..."
+          SEEN=0
+          for i in 1 2 3 4 5; do
+            sleep 6
+            if curl -fsS https://pypi.org/pypi/tranche/json | python -c "import sys,json,os; d=json.load(sys.stdin); v=os.environ['V']; print(1 if v in d.get('releases',{}) else 0)"; then true; else echo 0; fi > seen.tmp
+            if [ "$(cat seen.tmp)" = "1" ]; then
+              SEEN=1; echo "Version $V now visible (attempt $i)."; break; fi
+            echo "Attempt $i: still not visible." >&2
+          done
+          if [ "$SEEN" != "1" ]; then
+            echo "Version $V not visible after polling; treating as failure." >&2
+            exit 1
+          fi
+          echo "visible_after=true" >> "$GITHUB_OUTPUT"
+
+      - name: Collect upload log artifact
+        if: always() && (github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.repository == 'pypi'))
+        uses: actions/upload-artifact@v4
+        with:
+          name: upload-log
+          path: |
+            upload.log
+            dist/SHA256SUMS.txt
+          if-no-files-found: ignore
 
       - name: Upload diagnostics artifact
         if: always()
@@ -145,11 +188,13 @@ jobs:
         if: always()
         env:
           VISIBLE: ${{ steps.pypi_visibility.outputs.visible }}
+          POST_VISIBLE: ${{ steps.post_visibility.outputs.visible_after }}
         run: |
           echo "## Publish summary" >> "$GITHUB_STEP_SUMMARY"
           echo "Version: $(cat VERSION)" >> "$GITHUB_STEP_SUMMARY"
           echo "Event: $GITHUB_EVENT_NAME" >> "$GITHUB_STEP_SUMMARY"
           echo "Visible on PyPI before upload: ${VISIBLE}" >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "${POST_VISIBLE}" ]; then echo "Visible after upload polling: ${POST_VISIBLE}" >> "$GITHUB_STEP_SUMMARY"; fi
 
 # Notes:
 # - Attestations deliberately disabled for now to rule out timing interaction.
