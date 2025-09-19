@@ -112,3 +112,43 @@ def test_safe_eval_with_numpy_enabled(tmp_path: Path) -> None:
     assert np.allclose(b, np.linspace(0, 1, 5))
     assert c.__class__.__name__ == "ndarray"
     assert np.array_equal(c, np.array([1, 2, 3]))
+
+
+def test_numpy_auto_backend(tmp_path: Path) -> None:
+    np = pytest.importorskip("numpy")
+
+    cfg_path = write_tmp_cfg(
+        tmp_path,
+        "auto_np.cfg",
+        """
+        [expr]
+        grid = numpy.linspace(0, -4, 5)
+        """,
+    )
+
+    cfg = Tranche()
+    cfg.add_from_file(cfg_path)
+
+    # backend left as default (None internally), allow_numpy triggers safe
+    # backend
+    grid = cfg.getexpression("expr", "grid", allow_numpy=True)
+    assert np.allclose(grid, np.linspace(0, -4, 5))
+
+
+def test_getnumpy_helper(tmp_path: Path) -> None:
+    np = pytest.importorskip("numpy")
+
+    cfg_path = write_tmp_cfg(
+        tmp_path,
+        "helper_np.cfg",
+        """
+        [expr]
+        arr = np.arange(4)
+        """,
+    )
+
+    cfg = Tranche()
+    cfg.add_from_file(cfg_path)
+
+    arr = cfg.getnumpy("expr", "arr")
+    assert np.array_equal(arr, np.arange(4))

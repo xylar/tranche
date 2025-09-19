@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [0.2.0] - 2025-09-19
+### Added
+- `Tranche.getnumpy()` convenience helper for NumPy-enabled expressions.
+
+### Changed
+- `getexpression()` now accepts `backend=None` (default). It auto-selects
+  `safe` when `allow_numpy=True` and `literal` otherwise.
+- Removed implicit literal->safe fallback/print; behavior is now deterministic
+  based on arguments.
+
+### Notes
+- This is an intentional minor version bump due to a public API signature
+  change (`backend` can now be `None`). Existing code that passed an explicit
+  backend string continues to work unchanged.
+
 ## [0.1.1] - 2025-09-12
 ### Changed
 - Publishing workflow for PyPI updated: publish on GitHub Release instead of on tag.

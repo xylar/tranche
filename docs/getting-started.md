@@ -38,13 +38,20 @@ lower.append(higher)  # entries from 'higher' win
 
 ## Safe expressions
 
-To parse list/tuple/dict values, or evaluate expressions using a safe AST evaluator:
+To parse list/tuple/dict values, or evaluate expressions:
 
 ```python
-cfg.getexpression('calc', 'values', backend='safe')
+# Literal-only (numbers, strings, containers)
+vals = cfg.getexpression('calc', 'values')
+
+# NumPy-enabled expression auto-selects safe backend
+grid = cfg.getexpression('grid', 'levels', allow_numpy=True)
+
+# Or use the helper for NumPy
+grid2 = cfg.getnumpy('grid', 'levels')
 ```
 
-Register custom callables for the safe backend:
+Register custom callables for the safe backend (available when backend resolves to 'safe'):
 
 ```python
 import math
