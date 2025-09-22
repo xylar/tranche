@@ -62,11 +62,17 @@ jobs:
       id-token: write  # for OIDC trusted publishing
       contents: read
     steps:
+      - name: Checkout (for version introspection)
+        uses: actions/checkout@v4
       - name: Download distributions
         uses: actions/download-artifact@v4
         with:
           name: python-package-distributions
           path: dist/
+      - name: Set up Python (for optional version check/debug)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - name: Publish to TestPyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
@@ -85,11 +91,17 @@ jobs:
       id-token: write  # for OIDC trusted publishing
       contents: read
     steps:
+      - name: Checkout (for version verification)
+        uses: actions/checkout@v4
       - name: Download distributions
         uses: actions/download-artifact@v4
         with:
           name: python-package-distributions
           path: dist/
+      - name: Set up Python (for version verification)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - name: Verify tag matches version
         run: |
           TAG_VERSION=${GITHUB_REF#refs/tags/}
