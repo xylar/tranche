@@ -1,203 +1,102 @@
-name: Build and publish to PyPI
+name: Publish Python 🐍 distribution 📦 to PyPI and (optionally) TestPyPI
+# Based on https://packaging.python.org/en/latest/guides/publishing-package-distribution-releases-using-github-actions-ci-cd-workflows/
 
 on:
-  release:
-    types: [published]
+  push:
+    branches: [ main ]
+    # Any semantic-version tag like 0.2.1 or 1.0.0rc1 will trigger
+    tags: [ '*' ]
   workflow_dispatch:
-    inputs:
-      repository:
-        description: 'Upload target repository'
-        required: true
-        default: 'testpypi'
-        type: choice
-        options:
-          - testpypi
-          - pypi
-      dry-run:
-        description: 'Build & validate only (no upload)'
-        required: false
-        default: 'false'
-        type: choice
-        options: ['false','true']
+
+# Default minimal permissions; jobs escalate only what they need
+permissions:
+  contents: read
 
 concurrency:
   group: publish-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
-  build-and-publish:
+  build:
+    name: Build & test 📦
     runs-on: ubuntu-latest
-    environment:
-      name: ${{ github.event_name == 'workflow_dispatch' && inputs.repository == 'testpypi' && 'testpypi' || 'pypi' }}
-    permissions:
-      contents: read
-      id-token: write  # Needed for Trusted Publishing (even if attestations disabled)
     steps:
-      - name: Check out code
+      - name: Checkout
         uses: actions/checkout@v4
-
+        with:
+          fetch-depth: 0
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
-
-      - name: Install build & publish tooling
+          python-version: '3.12'
+          cache: 'pip'
+      - name: Install build & dev deps
         run: |
           python -m pip install --upgrade pip
-          pip install build twine
-
-      - name: Extract version
-        id: get_version
-        run: |
-          set -euo pipefail
-          python -c "import runpy, pathlib; ver=runpy.run_path('tranche/version.py')['__version__']; print(f'version={ver}'); pathlib.Path('VERSION').write_text(ver)"
-          echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
-
-      - name: "Preflight (release): tag matches code version"
-        if: github.event_name == 'release'
-        run: |
-          set -euo pipefail
-          TAG="${GITHUB_REF_NAME}"
-          CODE_VER="$(cat VERSION)"
-          if [ "$TAG" != "$CODE_VER" ]; then
-            echo "Tag ($TAG) does not match tranche/version.py ($CODE_VER)" >&2
-            exit 1
-          fi
-          echo "Tag/version match: $TAG"
-
-      - name: Build sdist & wheel
+          # Install project in editable mode with dev extras (includes build, pytest, twine, etc.)
+          python -m pip install -e .[dev]
+      - name: Run tests (tags only)
+        if: startsWith(github.ref, 'refs/tags/')
+        run: pytest -q
+      - name: Build sdist and wheel
         run: python -m build
+      - name: Check distribution metadata
+        run: twine check dist/*
+      - name: Upload distribution artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+          retention-days: 7
 
-      - name: Record artifact checksums
+  publish-to-testpypi:
+    name: Publish to TestPyPI
+    # Only publish to TestPyPI for pushes to main (not for pull requests / tags directly)
+    if: github.ref == 'refs/heads/main'
+    needs: [ build ]
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/tranche
+    permissions:
+      id-token: write  # for OIDC trusted publishing
+      contents: read
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+  publish-to-pypi:
+    name: Publish to PyPI
+    # Run on any tag (semantic versions used directly, no leading 'v')
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [ build ]
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/tranche
+    permissions:
+      id-token: write  # for OIDC trusted publishing
+      contents: read
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+      - name: Verify tag matches version
         run: |
-          set -euo pipefail
-          sha256sum dist/* > dist/SHA256SUMS.txt
-          cat dist/SHA256SUMS.txt
-
-      - name: Check package metadata
-        run: python -m twine check dist/*.whl dist/*.tar.gz
-
-      - name: "Preflight: version visibility on PyPI (informational)"
-        id: pypi_visibility
-        run: |
-          set -euo pipefail
-          V="$(cat VERSION)"
-          FOUND=$(curl -fsS https://pypi.org/pypi/tranche/json | python -c "import sys,json; import os; d=json.load(sys.stdin); v=os.environ.get('V'); print(1 if v in d.get('releases',{}) else 0)" ) || FOUND=0
-          if [ "$FOUND" = "1" ]; then
-            echo "Version $V currently visible on PyPI."; echo "visible=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "Version $V not visible on PyPI (good or was never uploaded)."; echo "visible=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Abort if visible version on release
-        if: github.event_name == 'release' && steps.pypi_visibility.outputs.visible == 'true'
-        run: |
-          echo "Refusing to upload: version already present on PyPI. Bump version." >&2
-          exit 1
-
-      - name: Optional settle delay
-        if: github.event_name == 'release'
-        run: sleep 12
-
-      - name: Diagnostics (pre-upload)
-        run: |
-          set -e
-          python -c "import json,os,platform,datetime; data={'event':os.getenv('GITHUB_EVENT_NAME'),'ref':os.getenv('GITHUB_REF'),'ref_name':os.getenv('GITHUB_REF_NAME'),'version':open('VERSION').read().strip(),'runner_os':os.getenv('RUNNER_OS'),'python':platform.python_version(),'time_utc':datetime.datetime.utcnow().isoformat()+'Z'}; open('publish-diagnostics.json','w').write(json.dumps(data,indent=2)); print(json.dumps(data,indent=2))"
-
-      - name: Dry run stop
-        if: github.event_name == 'workflow_dispatch' && inputs.dry-run == 'true'
-        run: echo "Dry run requested; skipping upload." && exit 0
-
-      - name: Upload to TestPyPI (manual)
-        if: github.event_name == 'workflow_dispatch' && inputs.repository == 'testpypi'
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN }}
-        run: |
-          set -euo pipefail
-          twine upload --skip-existing --verbose --repository-url https://test.pypi.org/legacy/ dist/*
-
-      - name: Upload to PyPI (manual, attestations disabled temporarily)
-        if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.repository == 'pypi')
-        env:
-          # Trusted Publishing: username/password not needed; twine will use OIDC token via pypi token issuance.
-          # Leaving env empty here intentionally.
-          TWINE_NON_INTERACTIVE: 1
-        run: |
-          set -euo pipefail
-          echo "Starting twine upload (verbose)"
-          # Upload WITHOUT --skip-existing so a reuse error becomes a hard failure.
-          # Capture full log
-          # Only upload actual distribution archives (exclude checksum text file)
-          if twine upload --verbose dist/*.whl dist/*.tar.gz 2>&1 | tee upload.log; then
-            echo "upload_exit=0" >> $GITHUB_OUTPUT
-          else
-            CODE=$?
-            echo "upload_exit=$CODE" >> $GITHUB_OUTPUT
-            if grep -i "filename has already been used" upload.log >/dev/null; then
-              echo "Detected filename reuse error on first attempt (version $(cat VERSION))." >&2
-              echo "failure_type=reuse" >> $GITHUB_OUTPUT
-            else
-              echo "failure_type=other" >> $GITHUB_OUTPUT
-            fi
-            exit $CODE
-          fi
-
-      - name: "Post-upload: poll for version visibility"
-        if: github.event_name == 'release'
-        id: post_visibility
-        run: |
-          set -euo pipefail
-          V=$(cat VERSION)
-          echo "Polling PyPI for version $V visibility..."
-          SEEN=0
-          for i in 1 2 3 4 5; do
-            sleep 6
-            if curl -fsS https://pypi.org/pypi/tranche/json | python -c "import sys,json,os; d=json.load(sys.stdin); v=os.environ['V']; print(1 if v in d.get('releases',{}) else 0)"; then true; else echo 0; fi > seen.tmp
-            if [ "$(cat seen.tmp)" = "1" ]; then
-              SEEN=1; echo "Version $V now visible (attempt $i)."; break; fi
-            echo "Attempt $i: still not visible." >&2
-          done
-          if [ "$SEEN" != "1" ]; then
-            echo "Version $V not visible after polling; treating as failure." >&2
+          TAG_VERSION=${GITHUB_REF#refs/tags/}
+          FILE_VERSION=$(python -c "import tranche.version as v; print(v.__version__)")
+          if [ "$TAG_VERSION" != "$FILE_VERSION" ]; then
+            echo "Tag version ($TAG_VERSION) != package version ($FILE_VERSION)" >&2
             exit 1
           fi
-          echo "visible_after=true" >> "$GITHUB_OUTPUT"
-
-      - name: Collect upload log artifact
-        if: always() && (github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.repository == 'pypi'))
-        uses: actions/upload-artifact@v4
-        with:
-          name: upload-log
-          path: |
-            upload.log
-            dist/SHA256SUMS.txt
-          if-no-files-found: ignore
-
-      - name: Upload diagnostics artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: publish-diagnostics
-          path: |
-            publish-diagnostics.json
-            dist/*
-          if-no-files-found: ignore
-
-      - name: Summary
-        if: always()
-        env:
-          VISIBLE: ${{ steps.pypi_visibility.outputs.visible }}
-          POST_VISIBLE: ${{ steps.post_visibility.outputs.visible_after }}
-        run: |
-          echo "## Publish summary" >> "$GITHUB_STEP_SUMMARY"
-          echo "Version: $(cat VERSION)" >> "$GITHUB_STEP_SUMMARY"
-          echo "Event: $GITHUB_EVENT_NAME" >> "$GITHUB_STEP_SUMMARY"
-          echo "Visible on PyPI before upload: ${VISIBLE}" >> "$GITHUB_STEP_SUMMARY"
-          if [ -n "${POST_VISIBLE}" ]; then echo "Visible after upload polling: ${POST_VISIBLE}" >> "$GITHUB_STEP_SUMMARY"; fi
-
-# Notes:
-# - Attestations deliberately disabled for now to rule out timing interaction.
-# - Re-enable later by returning to pypa/gh-action-pypi-publish or adding a sigstore attest step after successful upload.
-# - Use workflow_dispatch with dry-run=true to validate build before tagging a release.
-
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
