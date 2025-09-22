@@ -53,8 +53,16 @@ jobs:
     name: Publish to TestPyPI
     # Trigger only for pre-release tags (rc, a, b, dev). Final releases (no pre-release marker) skip this.
     # You can also run this manually via workflow_dispatch for ad‑hoc testing without tagging.
+    # IMPORTANT: The previous version used contains(github.ref, 'a') etc. but github.ref for a tag
+    # looks like 'refs/tags/0.2.2' and the segment 'tags' contains 'a'. That meant EVERY tag was
+    # considered a pre-release, so only the TestPyPI job ran. Fix: operate on github.ref_name (the
+    # bare tag name) instead of the full ref path.
+    # NOTE: GitHub Actions expressions do not provide regex matching, so we still have broad
+    # heuristics: any occurrence of 'a', 'b', 'rc', or 'dev' in the tag name marks a pre-release.
+    # This aligns with common PEP 440 segments (aN, bN, rcN, devN). If you ever introduce tags that
+    # legitimately contain these letters but are final (rare), refine further via a custom action.
     if: |
-      (startsWith(github.ref, 'refs/tags/') && (contains(github.ref, 'rc') || contains(github.ref, 'a') || contains(github.ref, 'b') || contains(github.ref, 'dev'))) ||
+      (startsWith(github.ref, 'refs/tags/') && (contains(github.ref_name, 'rc') || contains(github.ref_name, 'dev') || contains(github.ref_name, 'a') || contains(github.ref_name, 'b'))) ||
       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     needs: [ build ]
     runs-on: ubuntu-latest
@@ -93,7 +101,8 @@ jobs:
     name: Publish to PyPI
     # Run only on final release tags: tagged versions without pre-release markers.
     # Ensures pre-releases never hit PyPI until promoted by tagging a final version.
-    if: startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc') && !contains(github.ref, 'a') && !contains(github.ref, 'b') && !contains(github.ref, 'dev')
+  # Final release: tag does NOT contain typical pre-release markers when looking only at the tag name.
+    if: startsWith(github.ref, 'refs/tags/') && !contains(github.ref_name, 'rc') && !contains(github.ref_name, 'dev') && !contains(github.ref_name, 'a') && !contains(github.ref_name, 'b')
     needs: [ build ]
     runs-on: ubuntu-latest
     environment:
