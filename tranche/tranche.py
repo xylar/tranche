@@ -9,12 +9,13 @@ from configparser import (
     ConfigParser,
     ExtendedInterpolation,
     RawConfigParser,
-    SectionProxy,
 )
 from importlib.resources import files as imp_res_files
 from re import Match
 from types import ModuleType
 from typing import Any, TextIO, TypeVar, cast
+
+from .section import Section
 
 CombinedParser = ConfigParser | RawConfigParser
 T = TypeVar("T")
@@ -836,7 +837,7 @@ class Tranche:
         self.combined_comments = None
         self.sources = None
 
-    def __getitem__(self, section: str) -> SectionProxy:
+    def __getitem__(self, section: str) -> Section:
         """
         Get get the config options for a given section.
 
@@ -847,13 +848,14 @@ class Tranche:
 
         Returns
         -------
-        section_proxy : configparser.SectionProxy
-            The config options for the given section.
+        section : tranche.section.Section
+            The config options for the given section with tranche helpers.
         """
         if self.combined is None:
             self.combine()
         combined = cast(CombinedParser, self.combined)
-        return combined[section]
+        proxy = combined[section]
+        return Section(self, proxy, section)
 
     def combine(self, raw: bool = False) -> None:
         """
