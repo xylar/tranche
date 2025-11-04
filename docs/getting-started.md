@@ -60,6 +60,24 @@ cfg.register_symbol('sqrt', math.sqrt)
 
 When using `allow_numpy=True` with the safe backend, a limited `np` namespace is available.
 
+### Section-level helpers
+
+You can access a section as an object and use tranche's helpers directly on it. This keeps
+code concise when working within a single section:
+
+```python
+sec = cfg['calc']
+
+# Same as cfg.getlist('calc', 'values', dtype=int)
+values = sec.getlist('values', dtype=int)
+
+# Same as cfg.getexpression('calc', 'levels', allow_numpy=True)
+levels = sec.getnumpy('levels')
+
+# Provenance for a single option
+info = sec.explain('values')  # {"value": ..., "source": ..., "layer": ...}
+```
+
 ## Write a combined config (with provenance)
 
 Write the merged configuration back to disk while preserving original comments and including `# source:` for each option:
