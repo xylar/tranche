@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from collections.abc import Callable, Iterator
 from configparser import SectionProxy
 from typing import TYPE_CHECKING, Any, TypeVar, cast
@@ -17,7 +19,12 @@ class Section:
     other behavior to the underlying ``SectionProxy``.
     """
 
-    def __init__(self, tranche: Tranche, proxy: SectionProxy, name: str) -> None:
+    def __init__(
+        self,
+        tranche: Tranche,
+        proxy: SectionProxy,
+        name: str,
+    ) -> None:
         """
         Initialize a Section wrapper.
 
