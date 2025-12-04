@@ -189,6 +189,102 @@ def test_extended_interpolation_section_option(tmp_path: Path) -> None:
     assert cfg.get("base", "baz") == "hello world"
 
 
+def test_get_kwargs_fallback(tmp_path: Path) -> None:
+    cfg_path = write_tmp_cfg(
+        tmp_path,
+        "fallback.cfg",
+        """
+        [base]
+        present = 1
+        """,
+    )
+
+    cfg = Tranche()
+    cfg.add_from_file(cfg_path)
+
+    # Direct Tranche getters with fallback
+    assert cfg.get("base", "missing", fallback="x") == "x"
+    assert cfg.getint("base", "missing", fallback=5) == 5
+    assert cfg.getfloat("base", "missing", fallback=1.5) == 1.5
+    assert cfg.getboolean("base", "missing", fallback=True) is True
+
+    # Section helpers should also support kwargs through to Tranche
+    base = cfg["base"]
+    assert base.get("missing", fallback="y") == "y"
+
+
+def test_getlist_and_getexpression_nonstring_fallback(tmp_path: Path) -> None:
+    cfg_path = write_tmp_cfg(
+        tmp_path,
+        "fallback_expr.cfg",
+        """
+        [vals]
+        list = 1, 2, 3
+        expr = [1, 2, 3]
+        """,
+    )
+
+    cfg = Tranche()
+    cfg.add_from_file(cfg_path)
+
+    # getlist with pre-parsed iterable fallback should return that
+    # value directly
+    assert cfg.getlist("vals", "missing", fallback=["4", "5"]) == ["4", "5"]
+
+    # getexpression with string fallback should return the fallback unchanged
+    assert (
+        cfg.getexpression(
+            "vals",
+            "missing",
+            backend="literal",
+            fallback="[8, 9]",
+        )
+        == "[8, 9]"
+    )
+
+    # getexpression with already-evaluated fallback should return it
+    fallback_value = (10, 11)
+    assert (
+        cfg.getexpression(
+            "vals",
+            "missing",
+            backend="literal",
+            fallback=fallback_value,
+        )
+        is fallback_value
+    )
+
+
+def test_getlist_and_getexpression_ignore_fallback_when_present(
+    tmp_path: Path,
+) -> None:
+    """Fallback is ignored when the option exists in the config."""
+
+    cfg_path = write_tmp_cfg(
+        tmp_path,
+        "present_expr.cfg",
+        """
+        [vals]
+        list = 1, 2, 3
+        expr = [1, 2, 3]
+        """,
+    )
+
+    cfg = Tranche()
+    cfg.add_from_file(cfg_path)
+
+    # getlist should return the parsed config value, not the fallback
+    assert cfg.getlist("vals", "list", int, fallback=[4, 5]) == [1, 2, 3]
+
+    # getexpression should evaluate the config value, ignoring fallback
+    assert cfg.getexpression(
+        "vals",
+        "expr",
+        backend="literal",
+        fallback=[9, 9, 9],
+    ) == [1, 2, 3]
+
+
 def test_safe_eval_rejects_dunder_and_nonwhitelisted_attr(
     tmp_path: Path,
 ) -> None:
