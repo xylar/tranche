@@ -477,8 +477,8 @@ class Tranche:
             The value of the config option parsed into a list.
         """
 
-        # At this point, fallback is either None or a string; delegate
-        # retrieval to ConfigParser via get().
+        # At this point, fallback is either None or a list. If the option is missing,
+        # and fallback is provided, return the fallback list directly without parsing.
         raw = self.get(section, option, fallback=None, **kwargs)
         if raw is None:
             return fallback
