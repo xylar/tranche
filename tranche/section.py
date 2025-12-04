@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterator
 from configparser import SectionProxy
-from typing import TYPE_CHECKING, Any, TypeVar, cast
+from typing import TYPE_CHECKING, Any, TypeVar
 
 # Import Tranche only for type checking to avoid circular imports at runtime
 if TYPE_CHECKING:  # pragma: no cover - type checking only
@@ -46,8 +46,9 @@ class Section:
     def getlist(
         self,
         option: str,
-        dtype: Callable[[str], T] | None = None,
-    ) -> list[T]:
+        dtype: Callable[[str], T] = str,  # type: ignore[assignment]
+        **kwargs: Any,
+    ) -> list[T] | None:
         """
         Get an option value parsed as a list.
 
@@ -55,17 +56,20 @@ class Section:
         ----------
         option : str
             Option name within this section.
+
         dtype : Callable[[str], T], optional
             Converter applied to each item. Defaults to ``str``.
+
+        **kwargs : Any
+            Additional keyword arguments forwarded to
+            :meth:`tranche.Tranche.getlist`.
 
         Returns
         -------
         list of T
             Parsed list with elements converted by ``dtype``.
         """
-        if dtype is None:
-            dtype = cast(Callable[[str], T], str)
-        return self._tranche.getlist(self._name, option, dtype=dtype)
+        return self._tranche.getlist(self._name, option, dtype=dtype, **kwargs)
 
     def getexpression(
         self,
@@ -73,6 +77,7 @@ class Section:
         dtype: type | None = None,
         backend: str | None = None,
         allow_numpy: bool = False,
+        **kwargs: Any,
     ) -> Any:
         """
         Evaluate an option as a Python expression safely.
@@ -81,14 +86,15 @@ class Section:
         ----------
         option : str
             Option name within this section.
-        dtype : type, optional
-            If provided, cast list/tuple elements or dict values.
         backend : {"literal", "safe"} or None, optional
             Evaluation backend. ``None`` chooses ``"safe"`` when
             ``allow_numpy`` is True, otherwise ``"literal"``.
         allow_numpy : bool, optional
             If True and using the "safe" backend, expose limited numpy
             functions under ``np``/``numpy``.
+        **kwargs : Any
+            Additional keyword arguments forwarded to
+            :meth:`tranche.Tranche.getexpression`.
 
         Returns
         -------
@@ -101,6 +107,7 @@ class Section:
             dtype=dtype,
             backend=backend,
             allow_numpy=allow_numpy,
+            **kwargs,
         )
 
     def getnumpy(
@@ -108,6 +115,7 @@ class Section:
         option: str,
         dtype: type | None = None,
         backend: str | None = None,
+        **kwargs: Any,
     ) -> Any:
         """
         Evaluate an expression with NumPy enabled.
@@ -122,13 +130,22 @@ class Section:
             If provided, cast list/tuple elements or dict values.
         backend : {"literal", "safe"} or None, optional
             Backend override. ``None`` chooses ``"safe"``.
+        **kwargs : Any
+            Additional keyword arguments forwarded to
+            :meth:`tranche.Tranche.getnumpy`.
 
         Returns
         -------
         Any
             Result of the evaluated expression, optionally cast.
         """
-        return self._tranche.getnumpy(self._name, option, dtype=dtype, backend=backend)
+        return self._tranche.getnumpy(
+            self._name,
+            option,
+            dtype=dtype,
+            backend=backend,
+            **kwargs,
+        )
 
     def explain(self, option: str) -> dict:
         """
