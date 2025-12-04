@@ -296,7 +296,7 @@ class Tranche:
             if exception:
                 raise
 
-    def get(self, section: str, option: str) -> str:
+    def get(self, section: str, option: str, **kwargs: Any) -> str | None:
         """
         Get an option value for a given section.
 
@@ -308,17 +308,23 @@ class Tranche:
         option : str
             The name of the config option
 
+        **kwargs : Any
+            Additional keyword arguments forwarded to
+            :meth:`configparser.ConfigParser.get`.
+
         Returns
         -------
-        value : str
+        value : str | None
             The value of the config option
         """
         if self.combined is None:
             self.combine()
         combined = cast(CombinedParser, self.combined)
-        return combined.get(section, option)
+        # ConfigParser.get is not precisely typed, so help mypy a bit
+        value = combined.get(section, option, **kwargs)
+        return cast(str | None, value)
 
-    def getint(self, section: str, option: str) -> int:
+    def getint(self, section: str, option: str, **kwargs: Any) -> int | None:
         """
         Get an option integer value for a given section.
 
@@ -330,17 +336,22 @@ class Tranche:
         option : str
             The name of the config option
 
+        **kwargs : Any
+            Additional keyword arguments forwarded to
+            :meth:`configparser.ConfigParser.getint`.
+
         Returns
         -------
-        value : int
+        value : int | None
             The value of the config option
         """
         if self.combined is None:
             self.combine()
         combined = cast(CombinedParser, self.combined)
-        return combined.getint(section, option)
+        value = combined.getint(section, option, **kwargs)
+        return cast(int | None, value)
 
-    def getfloat(self, section: str, option: str) -> float:
+    def getfloat(self, section: str, option: str, **kwargs: Any) -> float | None:
         """
         Get an option float value for a given section.
 
@@ -352,17 +363,22 @@ class Tranche:
         option : str
             The name of the config option
 
+        **kwargs : Any
+            Additional keyword arguments forwarded to
+            :meth:`configparser.ConfigParser.getfloat`.
+
         Returns
         -------
-        value : float
+        value : float | None
             The value of the config option
         """
         if self.combined is None:
             self.combine()
         combined = cast(CombinedParser, self.combined)
-        return combined.getfloat(section, option)
+        value = combined.getfloat(section, option, **kwargs)
+        return cast(float | None, value)
 
-    def getboolean(self, section: str, option: str) -> bool:
+    def getboolean(self, section: str, option: str, **kwargs: Any) -> bool | None:
         """
         Get an option boolean value for a given section.
 
@@ -374,15 +390,20 @@ class Tranche:
         option : str
             The name of the config option
 
+        **kwargs : Any
+            Additional keyword arguments forwarded to
+            :meth:`configparser.ConfigParser.getboolean`.
+
         Returns
         -------
-        value : bool
+        value : bool | None
             The value of the config option
         """
         if self.combined is None:
             self.combine()
         combined = cast(CombinedParser, self.combined)
-        return combined.getboolean(section, option)
+        value = combined.getboolean(section, option, **kwargs)
+        return cast(bool | None, value)
 
     def explain(self, section: str, option: str) -> dict:
         """
@@ -425,7 +446,10 @@ class Tranche:
         section: str,
         option: str,
         dtype: Callable[[str], T] = str,  # type: ignore[assignment]
-    ) -> list[T]:
+        *,
+        fallback: list[T] | None = None,
+        **kwargs: Any,
+    ) -> list[T] | None:
         """
         Get an option value as a list for a given section.
 
@@ -438,14 +462,26 @@ class Tranche:
             The name of the config option
 
         dtype : {Type[str], Type[int], Type[float]}
-            The type of the elements in the list
+            The type of the elements in the list.
+
+        fallback : list, optional
+            A fallback value to return if the option is not found.
+
+        **kwargs : Any
+            Additional keyword arguments forwarded to
+            :meth:`configparser.ConfigParser.get`.
 
         Returns
         -------
-        value : list
-            The value of the config option parsed into a list
+        value : list | None
+            The value of the config option parsed into a list.
         """
-        raw = self.get(section, option)
+
+        # At this point, fallback is either None or a string; delegate
+        # retrieval to ConfigParser via get().
+        raw = self.get(section, option, fallback=None, **kwargs)
+        if raw is None:
+            return fallback
         parts = raw.replace(',', ' ').split()
         items: list[T] = [dtype(value) for value in parts]
         return items
@@ -457,6 +493,8 @@ class Tranche:
         dtype: type | None = None,
         backend: str | None = None,
         allow_numpy: bool = False,
+        fallback: Any = None,
+        **kwargs: Any,
     ) -> Any:
         """
         Get an option as an expression (typically a list, though tuples and
@@ -486,8 +524,18 @@ class Tranche:
         allow_numpy : bool, optional
             If True and backend="safe", enable limited numpy functions
             (np.arange, np.linspace, np.array) under names "np"/"numpy".
+
+        fallback : Any, optional
+            A fallback value to return if the option is not found.
+
+        **kwargs : Any
+            Additional keyword arguments forwarded to
+            :meth:`configparser.ConfigParser.get`.
         """  # noqa: E501
-        expression_string = self.get(section, option)
+        expression_string = self.get(section, option, fallback=None, **kwargs)
+
+        if expression_string is None:
+            return fallback
 
         # Adaptive backend selection
         if backend is None:
@@ -522,6 +570,8 @@ class Tranche:
         option: str,
         dtype: type | None = None,
         backend: str | None = None,
+        fallback: Any = None,
+        **kwargs: Any,
     ) -> Any:
         """Shortcut for expressions requiring NumPy.
 
@@ -538,6 +588,11 @@ class Tranche:
             Cast list/tuple/dict elements to this type.
         backend : {"literal", "safe"} or None, optional
             Override backend.  None => choose "safe".
+        fallback : Any, optional
+            A fallback value to return if the option is not found.
+        **kwargs : Any
+            Additional keyword arguments forwarded to
+            :meth:`configparser.ConfigParser.get`.
         """
         return self.getexpression(
             section,
@@ -545,6 +600,8 @@ class Tranche:
             dtype=dtype,
             backend=backend,
             allow_numpy=True,
+            fallback=fallback,
+            **kwargs,
         )
 
     def register_symbol(self, name: str, obj: Any) -> None:
@@ -922,8 +979,11 @@ class Tranche:
         combined = cast(CombinedParser, self.combined)
         config_dict: dict[str, dict[str, str]] = {}
         for section in combined.sections():
+            # get() returns str | None, but for sections/options that
+            # exist in the combined parser, ConfigParser always returns
+            # a string. Help mypy with an explicit cast.
             config_dict[section] = {
-                option: self.get(section, option)
+                option: cast(str, self.get(section, option))
                 for option in combined.options(section)
             }
         validator(config_dict)
