@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [Unreleased]
+### Added
+- Broader `configparser.ConfigParser` compatibility so tranche can be used as a
+  more complete drop-in wrapper:
+  - Query methods: `sections()`, `options()`, `items()`, `defaults()`,
+    `keys()`, `values()`.
+  - Container protocol: `__contains__`, `__iter__`, `__len__`.
+  - In-memory loaders: `read_string()`, `read_file()`, `read_dict()` (with
+    provenance source labels and env-var interpolation for text loaders).
+  - Mutation: `add_section()`, `remove_option()`, `remove_section()`, plus
+    mapping assignment/deletion via `config[section] = {...}` and
+    `del config[section]`.  `remove_option`/`remove_section` act across all
+    layers so options truly disappear from the combined view.
+- `Section` is now a more complete `configparser.SectionProxy` wrapper:
+  `keys()`, `values()`, `items()`, `setdefault()`, `update()`, `pop()`,
+  `popitem()`, `clear()`, item assignment/deletion, and a `name` property.
+  Mutations are routed through the parent `Tranche` so they persist across
+  recombination.
+
+### Changed
+- `Section` now re-derives a live `SectionProxy` on each access instead of
+  caching one, so a held `Section` reflects later mutations rather than a stale
+  snapshot.
+
 ## [0.2.2] - 2025-09-22
 ### Changed
 - Internal maintenance release: bumped version metadata and prepared packaging.
