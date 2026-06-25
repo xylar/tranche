@@ -4,13 +4,15 @@ import math
 import os
 import re
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Iterator, Mapping
 from configparser import (
     ConfigParser,
     ExtendedInterpolation,
+    NoSectionError,
     RawConfigParser,
 )
 from importlib.resources import files as imp_res_files
+from io import StringIO
 from re import Match
 from types import ModuleType
 from typing import Any, TextIO, TypeVar, cast
@@ -19,6 +21,9 @@ from .section import Section
 
 CombinedParser = ConfigParser | RawConfigParser
 T = TypeVar("T")
+
+# Sentinel distinguishing "argument not provided" from an explicit ``None``.
+_UNSET: Any = object()
 
 
 class Tranche:
@@ -295,6 +300,105 @@ class Tranche:
         except (ModuleNotFoundError, FileNotFoundError, TypeError):
             if exception:
                 raise
+
+    def read_string(
+        self,
+        string: str,
+        source: str = "<string>",
+        user: bool = False,
+    ) -> None:
+        """
+        Add config options read from a string.
+
+        This mirrors :meth:`configparser.ConfigParser.read_string` while
+        preserving comments, provenance and layered precedence.  Environment
+        variables of the form ``${env:VAR}`` are interpolated, just as for
+        :meth:`add_from_file`.
+
+        Parameters
+        ----------
+        string : str
+            The config contents to parse.
+
+        source : str, optional
+            A label used as the provenance "source" for these options.  A later
+            call with the same ``source`` replaces the earlier layer.
+
+        user : bool, optional
+            Whether these options should be treated as user overrides that take
+            precedence over all base options.
+        """
+        self._ingest(string.splitlines(keepends=True), source, user=user)
+
+    def read_file(
+        self,
+        f: Any,
+        source: str | None = None,
+        user: bool = False,
+    ) -> None:
+        """
+        Add config options read from an open file or iterable of lines.
+
+        This mirrors :meth:`configparser.ConfigParser.read_file` while
+        preserving comments, provenance and layered precedence.
+
+        Parameters
+        ----------
+        f : iterable of str
+            An open file object or any iterable yielding config lines.
+
+        source : str, optional
+            A label used as the provenance "source" for these options.  If not
+            given, ``f.name`` is used when available, otherwise ``"<stream>"``.
+            A later call with the same ``source`` replaces the earlier layer.
+
+        user : bool, optional
+            Whether these options should be treated as user overrides that take
+            precedence over all base options.
+        """
+        if source is None:
+            source = getattr(f, "name", "<stream>")
+        self._ingest(list(f), cast(str, source), user=user)
+
+    def read_dict(
+        self,
+        dictionary: Mapping[str, Mapping[str, Any]],
+        source: str = "<dict>",
+        user: bool = False,
+    ) -> None:
+        """
+        Add config options read from a nested dictionary.
+
+        This mirrors :meth:`configparser.ConfigParser.read_dict`.  Keys and
+        values are converted to strings.  Options added this way have empty
+        comments.
+
+        Parameters
+        ----------
+        dictionary : Mapping[str, Mapping[str, Any]]
+            A mapping of the form ``{section: {option: value, ...}, ...}``.
+
+        source : str, optional
+            A label used as the provenance "source" for these options.  If
+            several calls share a source, later options overwrite earlier ones.
+
+        user : bool, optional
+            Whether these options should be treated as user overrides that take
+            precedence over all base options.
+        """
+        config_dict = self._user_config if user else self._configs
+        config = config_dict.setdefault(source, RawConfigParser())
+        comments = self._comments.setdefault(source, {})
+        for section, options in dictionary.items():
+            section = str(section)
+            if not config.has_section(section):
+                config.add_section(section)
+            comments.setdefault(section, "")
+            for option, value in options.items():
+                option = str(option).lower()
+                config.set(section, option, str(value))
+                comments[(section, option)] = ""
+        self._invalidate()
 
     def get(self, section: str, option: str, **kwargs: Any) -> str | None:
         """
@@ -704,6 +808,136 @@ class Tranche:
         combined = cast(CombinedParser, self.combined)
         return combined.has_option(section, option)
 
+    def sections(self) -> list[str]:
+        """
+        Get the list of section names in the combined config.
+
+        The special ``[DEFAULT]`` section is not included, mirroring
+        :meth:`configparser.ConfigParser.sections`.
+
+        Returns
+        -------
+        sections : list of str
+            The names of the config sections
+        """
+        if self.combined is None:
+            self.combine()
+        combined = cast(CombinedParser, self.combined)
+        return combined.sections()
+
+    def options(self, section: str) -> list[str]:
+        """
+        Get the list of option names available in the given section.
+
+        Parameters
+        ----------
+        section : str
+            The name of the config section
+
+        Returns
+        -------
+        options : list of str
+            The names of the options in the section
+        """
+        if self.combined is None:
+            self.combine()
+        combined = cast(CombinedParser, self.combined)
+        return combined.options(section)
+
+    def defaults(self) -> Mapping[str, str]:
+        """
+        Get the options in the special ``[DEFAULT]`` section.
+
+        Returns
+        -------
+        defaults : Mapping[str, str]
+            The fallback options applied to every section
+        """
+        if self.combined is None:
+            self.combine()
+        combined = cast(CombinedParser, self.combined)
+        return combined.defaults()
+
+    def items(
+        self,
+        section: str = _UNSET,
+        **kwargs: Any,
+    ) -> Any:
+        """
+        Get section or option items from the combined config.
+
+        Mirrors :meth:`configparser.ConfigParser.items`.
+
+        Parameters
+        ----------
+        section : str, optional
+            If given, return a list of ``(option, value)`` pairs for that
+            section.  If omitted, return a list of ``(name, section)`` pairs for
+            every section, where each ``section`` is a
+            :class:`tranche.section.Section` wrapper.
+
+        **kwargs : Any
+            Additional keyword arguments (e.g. ``raw``, ``vars``) forwarded to
+            :meth:`configparser.ConfigParser.items` when ``section`` is given.
+
+        Returns
+        -------
+        items : list
+            Either ``(name, Section)`` pairs or ``(option, value)`` pairs.
+        """
+        if self.combined is None:
+            self.combine()
+        combined = cast(CombinedParser, self.combined)
+        if section is _UNSET:
+            return [(name, self[name]) for name in combined.sections()]
+        return combined.items(section, **kwargs)
+
+    def keys(self) -> list[str]:
+        """
+        Get the section names in the combined config (including ``DEFAULT``).
+
+        Returns
+        -------
+        keys : list of str
+            The section names, mirroring mapping access via ``config[section]``
+        """
+        if self.combined is None:
+            self.combine()
+        combined = cast(CombinedParser, self.combined)
+        return list(combined.keys())
+
+    def values(self) -> list[Section]:
+        """
+        Get a :class:`tranche.section.Section` wrapper for each section.
+
+        Returns
+        -------
+        values : list of tranche.section.Section
+            The sections of the combined config
+        """
+        return [self[name] for name in self.keys()]
+
+    def __contains__(self, section: object) -> bool:
+        """Whether ``section`` is a section in the combined config."""
+        if self.combined is None:
+            self.combine()
+        combined = cast(CombinedParser, self.combined)
+        return section in combined
+
+    def __iter__(self) -> Iterator[str]:
+        """Iterate over the section names (including ``DEFAULT``)."""
+        if self.combined is None:
+            self.combine()
+        combined = cast(CombinedParser, self.combined)
+        return iter(combined)
+
+    def __len__(self) -> int:
+        """The number of sections (including ``DEFAULT``) in the config."""
+        if self.combined is None:
+            self.combine()
+        combined = cast(CombinedParser, self.combined)
+        return len(combined)
+
     def set(
         self,
         section: str,
@@ -749,16 +983,159 @@ class Tranche:
         if not config.has_section(section):
             config.add_section(section)
         config.set(section, option, value)
-        self.combined = None
-        self.combined_comments = None
-        self.sources = None
+        self._invalidate()
         if filename not in self._comments:
             self._comments[filename] = dict()
+        self._comments[filename].setdefault(section, '')
         if comment is None:
             comment = ''
         else:
             comment = ''.join([f'# {line}\n' for line in comment.split('\n')])
         self._comments[filename][(section, option)] = comment
+
+    def add_section(self, section: str, user: bool = False) -> None:
+        """
+        Add an empty section.  The file from which this function was called is
+        retained for provenance, mirroring :meth:`set`.
+
+        Parameters
+        ----------
+        section : str
+            The name of the config section to add
+
+        user : bool, optional
+            Whether this section was supplied by the user and should take
+            priority over other sources
+
+        Raises
+        ------
+        configparser.DuplicateSectionError
+            If the section already exists in the calling file's layer
+        """
+        calling_frame = inspect.stack(context=2)[1]
+        filename = os.path.abspath(calling_frame.filename)
+        config_dict = self._user_config if user else self._configs
+        if filename not in config_dict:
+            config_dict[filename] = RawConfigParser()
+        config_dict[filename].add_section(section)
+        self._comments.setdefault(filename, {}).setdefault(section, '')
+        self._invalidate()
+
+    def remove_option(self, section: str, option: str) -> bool:
+        """
+        Remove an option from a section across all layers.
+
+        The option is removed from every contributing file (both base and user
+        layers) so that it no longer appears in the combined config.
+
+        Parameters
+        ----------
+        section : str
+            The name of the config section
+
+        option : str
+            The name of the config option
+
+        Returns
+        -------
+        existed : bool
+            Whether the option existed in any layer before removal
+
+        Raises
+        ------
+        configparser.NoSectionError
+            If the section is not present in any layer
+        """
+        option = option.lower()
+        section_found = False
+        existed = False
+        for config_dict in (self._configs, self._user_config):
+            for source, config in config_dict.items():
+                if not config.has_section(section):
+                    continue
+                section_found = True
+                if config.remove_option(section, option):
+                    existed = True
+                    self._comments.get(source, {}).pop((section, option), None)
+        if not section_found:
+            raise NoSectionError(section)
+        if existed:
+            self._invalidate()
+        return existed
+
+    def remove_section(self, section: str) -> bool:
+        """
+        Remove a section and all of its options across all layers.
+
+        The section is removed from every contributing file (both base and user
+        layers) so that it no longer appears in the combined config.
+
+        Parameters
+        ----------
+        section : str
+            The name of the config section
+
+        Returns
+        -------
+        existed : bool
+            Whether the section existed in any layer before removal
+        """
+        existed = False
+        for config_dict in (self._configs, self._user_config):
+            for source, config in config_dict.items():
+                if config.remove_section(section):
+                    existed = True
+                comments = self._comments.get(source)
+                if comments is None:
+                    continue
+                comments.pop(section, None)
+                for key in [
+                    key
+                    for key in comments
+                    if isinstance(key, tuple) and key[0] == section
+                ]:
+                    comments.pop(key, None)
+        if existed:
+            self._invalidate()
+        return existed
+
+    def __setitem__(self, section: str, options: Mapping[str, Any]) -> None:
+        """
+        Set the options of a section, replacing any existing section.
+
+        Mirrors ``ConfigParser.__setitem__``: the existing section (in every
+        layer) is removed first, then the provided options are added to a
+        runtime layer.
+
+        Parameters
+        ----------
+        section : str
+            The name of the config section
+
+        options : Mapping[str, Any]
+            The options to set in the section
+        """
+        self.remove_section(section)
+        for option, value in dict(options).items():
+            self._set_runtime(section, option, value)
+
+    def __delitem__(self, section: str) -> None:
+        """
+        Remove a section across all layers.
+
+        Parameters
+        ----------
+        section : str
+            The name of the config section
+
+        Raises
+        ------
+        KeyError
+            If the section does not exist
+        """
+        if section not in self:
+            raise KeyError(section)
+        self.remove_section(section)
 
     def write(
         self,
@@ -862,9 +1239,7 @@ class Tranche:
         self._configs.update(other._configs)
         self._user_config.update(other._user_config)
         self._comments.update(other._comments)
-        self.combined = None
-        self.combined_comments = None
-        self.sources = None
+        self._invalidate()
 
     def prepend(self, other: "Tranche") -> None:
         """
@@ -890,9 +1265,7 @@ class Tranche:
         comments = dict(other._comments)
         comments.update(self._comments)
         self._comments = comments
-        self.combined = None
-        self.combined_comments = None
-        self.sources = None
+        self._invalidate()
 
     def __getitem__(self, section: str) -> Section:
         """
@@ -990,24 +1363,54 @@ class Tranche:
 
     def _add(self, filename: str, user: bool) -> None:
         filename = os.path.abspath(filename)
-        config = RawConfigParser()
         if not os.path.exists(filename):
             raise FileNotFoundError(f'Config file does not exist: {filename}')
-        # Preprocess file for env var interpolation before reading
         with open(filename, encoding="utf-8") as f:
             lines = f.readlines()
-        lines = [self._interpolate_env_vars(line) for line in lines]
-        from io import StringIO
+        self._ingest(lines, filename, user=user)
 
-        config.read_file(StringIO(''.join(lines)), source=filename)
-        with open(filename, encoding="utf-8") as fp:
-            comments = self._parse_comments(fp, filename, comments_before=True)
+    def _ingest(self, lines: list[str], source: str, user: bool) -> None:
+        """
+        Parse ``lines`` of config text and store them under ``source``.
 
+        Shared by :meth:`_add`, :meth:`read_string` and :meth:`read_file`.
+        Environment variables (``${env:VAR}``) are interpolated and comments are
+        preserved.
+        """
+        interpolated = [self._interpolate_env_vars(line) for line in lines]
+        config = RawConfigParser()
+        config.read_file(StringIO(''.join(interpolated)), source=source)
+        # Parse comments from the original (un-interpolated) text
+        comments = self._parse_comments(
+            StringIO(''.join(lines)), source, comments_before=True
+        )
         if user:
-            self._user_config[filename] = config
+            self._user_config[source] = config
         else:
-            self._configs[filename] = config
-        self._comments[filename] = comments
+            self._configs[source] = config
+        self._comments[source] = comments
+        self._invalidate()
+
+    def _set_runtime(self, section: str, option: str, value: Any) -> None:
+        """
+        Set a single option in the shared in-memory ``<dict>`` base layer.
+
+        Used by mapping-style assignment (:meth:`__setitem__` and
+        ``Section.__setitem__``) where there is no originating file to attribute.
+        """
+        source = '<dict>'
+        config = self._configs.setdefault(source, RawConfigParser())
+        comments = self._comments.setdefault(source, {})
+        if not config.has_section(section):
+            config.add_section(section)
+            comments.setdefault(section, '')
+        option = option.lower()
+        config.set(section, option, str(value))
+        comments[(section, option)] = ''
+        self._invalidate()
+
+    def _invalidate(self) -> None:
+        """Reset cached combined state so it is rebuilt on next access."""
         self.combined = None
         self.combined_comments = None
         self.sources = None
