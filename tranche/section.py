@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from collections.abc import Callable, ItemsView, Iterator, KeysView, ValuesView
 from configparser import SectionProxy
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar, overload
 
 # Import Tranche only for type checking to avoid circular imports at runtime
 if TYPE_CHECKING:  # pragma: no cover - type checking only
     from .tranche import Tranche
 
 T = TypeVar("T")
+F = TypeVar("F")
 
 # Sentinel distinguishing "argument not provided" from an explicit ``None``.
 _UNSET: Any = object()
@@ -60,12 +61,28 @@ class Section:
 
     # ---- Convenience getters backed by Tranche methods ----
 
+    @overload
+    def getlist(
+        self,
+        option: str,
+        dtype: Callable[[str], T] = ...,
+    ) -> list[T]: ...
+
+    @overload
+    def getlist(
+        self,
+        option: str,
+        dtype: Callable[[str], T] = ...,
+        *,
+        fallback: F,
+    ) -> list[T] | F: ...
+
     def getlist(
         self,
         option: str,
         dtype: Callable[[str], T] = str,  # type: ignore[assignment]
         **kwargs: Any,
-    ) -> list[T] | None:
+    ) -> Any:
         """
         Get an option value parsed as a list.
 
@@ -78,13 +95,14 @@ class Section:
             Converter applied to each item. Defaults to ``str``.
 
         **kwargs : Any
-            Additional keyword arguments forwarded to
+            ``raw``, ``vars`` and ``fallback``, forwarded to
             :meth:`tranche.Tranche.getlist`.
 
         Returns
         -------
         list of T
-            Parsed list with elements converted by ``dtype``.
+            Parsed list with elements converted by ``dtype``, or ``fallback``
+            if it was given and the option is not present.
         """
         return self._tranche.getlist(self._name, option, dtype=dtype, **kwargs)
 
@@ -110,7 +128,7 @@ class Section:
             If True and using the "safe" backend, expose limited numpy
             functions under ``np``/``numpy``.
         **kwargs : Any
-            Additional keyword arguments forwarded to
+            ``raw``, ``vars`` and ``fallback``, forwarded to
             :meth:`tranche.Tranche.getexpression`.
 
         Returns
@@ -148,7 +166,7 @@ class Section:
         backend : {"literal", "safe"} or None, optional
             Backend override. ``None`` chooses ``"safe"``.
         **kwargs : Any
-            Additional keyword arguments forwarded to
+            ``raw``, ``vars`` and ``fallback``, forwarded to
             :meth:`tranche.Tranche.getnumpy`.
 
         Returns

@@ -15,12 +15,13 @@ from importlib.resources import files as imp_res_files
 from io import StringIO
 from re import Match
 from types import ModuleType
-from typing import Any, TextIO, TypeVar, cast
+from typing import Any, TextIO, TypeVar, cast, overload
 
 from .section import Section
 
 CombinedParser = ConfigParser | RawConfigParser
 T = TypeVar("T")
+F = TypeVar("F")
 
 # Sentinel distinguishing "argument not provided" from an explicit ``None``.
 _UNSET: Any = object()
@@ -400,7 +401,28 @@ class Tranche:
                 comments[(section, option)] = ""
         self._invalidate()
 
-    def get(self, section: str, option: str, **kwargs: Any) -> str | None:
+    @overload
+    def get(
+        self,
+        section: str,
+        option: str,
+        *,
+        raw: bool = ...,
+        vars: Mapping[str, str] | None = ...,
+    ) -> str: ...
+
+    @overload
+    def get(
+        self,
+        section: str,
+        option: str,
+        *,
+        raw: bool = ...,
+        vars: Mapping[str, str] | None = ...,
+        fallback: F,
+    ) -> str | F: ...
+
+    def get(self, section: str, option: str, **kwargs: Any) -> Any:
         """
         Get an option value for a given section.
 
@@ -412,23 +434,53 @@ class Tranche:
         option : str
             The name of the config option
 
-        **kwargs : Any
-            Additional keyword arguments forwarded to
+        raw : bool, optional
+            Whether to return the raw value, leaving any references to other
+            config options uninterpolated
+
+        vars : dict, optional
+            Options consulted before the config's own sections
+
+        fallback : optional
+            A value to return if the option is not present.  Without it, a
+            missing option raises, as it does for
             :meth:`configparser.ConfigParser.get`.
 
         Returns
         -------
-        value : str | None
-            The value of the config option
+        value : str
+            The value of the config option, or ``fallback`` if it was
+            given and the option is not present
         """
         if self.combined is None:
             self.combine()
         combined = cast(CombinedParser, self.combined)
         # ConfigParser.get is not precisely typed, so help mypy a bit
         value = combined.get(section, option, **kwargs)
-        return cast(str | None, value)
+        return cast(str, value)
 
-    def getint(self, section: str, option: str, **kwargs: Any) -> int | None:
+    @overload
+    def getint(
+        self,
+        section: str,
+        option: str,
+        *,
+        raw: bool = ...,
+        vars: Mapping[str, str] | None = ...,
+    ) -> int: ...
+
+    @overload
+    def getint(
+        self,
+        section: str,
+        option: str,
+        *,
+        raw: bool = ...,
+        vars: Mapping[str, str] | None = ...,
+        fallback: F,
+    ) -> int | F: ...
+
+    def getint(self, section: str, option: str, **kwargs: Any) -> Any:
         """
         Get an option integer value for a given section.
 
@@ -440,22 +492,52 @@ class Tranche:
         option : str
             The name of the config option
 
-        **kwargs : Any
-            Additional keyword arguments forwarded to
+        raw : bool, optional
+            Whether to return the raw value, leaving any references to other
+            config options uninterpolated
+
+        vars : dict, optional
+            Options consulted before the config's own sections
+
+        fallback : optional
+            A value to return if the option is not present.  Without it, a
+            missing option raises, as it does for
             :meth:`configparser.ConfigParser.getint`.
 
         Returns
         -------
-        value : int | None
-            The value of the config option
+        value : int
+            The value of the config option, or ``fallback`` if it was
+            given and the option is not present
         """
         if self.combined is None:
             self.combine()
         combined = cast(CombinedParser, self.combined)
         value = combined.getint(section, option, **kwargs)
-        return cast(int | None, value)
+        return cast(int, value)
 
-    def getfloat(self, section: str, option: str, **kwargs: Any) -> float | None:
+    @overload
+    def getfloat(
+        self,
+        section: str,
+        option: str,
+        *,
+        raw: bool = ...,
+        vars: Mapping[str, str] | None = ...,
+    ) -> float: ...
+
+    @overload
+    def getfloat(
+        self,
+        section: str,
+        option: str,
+        *,
+        raw: bool = ...,
+        vars: Mapping[str, str] | None = ...,
+        fallback: F,
+    ) -> float | F: ...
+
+    def getfloat(self, section: str, option: str, **kwargs: Any) -> Any:
         """
         Get an option float value for a given section.
 
@@ -467,22 +549,52 @@ class Tranche:
         option : str
             The name of the config option
 
-        **kwargs : Any
-            Additional keyword arguments forwarded to
+        raw : bool, optional
+            Whether to return the raw value, leaving any references to other
+            config options uninterpolated
+
+        vars : dict, optional
+            Options consulted before the config's own sections
+
+        fallback : optional
+            A value to return if the option is not present.  Without it, a
+            missing option raises, as it does for
             :meth:`configparser.ConfigParser.getfloat`.
 
         Returns
         -------
-        value : float | None
-            The value of the config option
+        value : float
+            The value of the config option, or ``fallback`` if it was
+            given and the option is not present
         """
         if self.combined is None:
             self.combine()
         combined = cast(CombinedParser, self.combined)
         value = combined.getfloat(section, option, **kwargs)
-        return cast(float | None, value)
+        return cast(float, value)
 
-    def getboolean(self, section: str, option: str, **kwargs: Any) -> bool | None:
+    @overload
+    def getboolean(
+        self,
+        section: str,
+        option: str,
+        *,
+        raw: bool = ...,
+        vars: Mapping[str, str] | None = ...,
+    ) -> bool: ...
+
+    @overload
+    def getboolean(
+        self,
+        section: str,
+        option: str,
+        *,
+        raw: bool = ...,
+        vars: Mapping[str, str] | None = ...,
+        fallback: F,
+    ) -> bool | F: ...
+
+    def getboolean(self, section: str, option: str, **kwargs: Any) -> Any:
         """
         Get an option boolean value for a given section.
 
@@ -494,20 +606,29 @@ class Tranche:
         option : str
             The name of the config option
 
-        **kwargs : Any
-            Additional keyword arguments forwarded to
+        raw : bool, optional
+            Whether to return the raw value, leaving any references to other
+            config options uninterpolated
+
+        vars : dict, optional
+            Options consulted before the config's own sections
+
+        fallback : optional
+            A value to return if the option is not present.  Without it, a
+            missing option raises, as it does for
             :meth:`configparser.ConfigParser.getboolean`.
 
         Returns
         -------
-        value : bool | None
-            The value of the config option
+        value : bool
+            The value of the config option, or ``fallback`` if it was
+            given and the option is not present
         """
         if self.combined is None:
             self.combine()
         combined = cast(CombinedParser, self.combined)
         value = combined.getboolean(section, option, **kwargs)
-        return cast(bool | None, value)
+        return cast(bool, value)
 
     def explain(self, section: str, option: str) -> dict:
         """
@@ -545,15 +666,38 @@ class Tranche:
         layer = "user" if source in self._user_config else "base"
         return {"value": value, "source": source, "layer": layer}
 
+    @overload
+    def getlist(
+        self,
+        section: str,
+        option: str,
+        dtype: Callable[[str], T] = ...,
+        *,
+        raw: bool = ...,
+        vars: Mapping[str, str] | None = ...,
+    ) -> list[T]: ...
+
+    @overload
+    def getlist(
+        self,
+        section: str,
+        option: str,
+        dtype: Callable[[str], T] = ...,
+        *,
+        raw: bool = ...,
+        vars: Mapping[str, str] | None = ...,
+        fallback: F,
+    ) -> list[T] | F: ...
+
     def getlist(
         self,
         section: str,
         option: str,
         dtype: Callable[[str], T] = str,  # type: ignore[assignment]
         *,
-        fallback: list[T] | None = None,
+        fallback: Any = _UNSET,
         **kwargs: Any,
-    ) -> list[T] | None:
+    ) -> Any:
         """
         Get an option value as a list for a given section.
 
@@ -569,23 +713,45 @@ class Tranche:
             The type of the elements in the list.
 
         fallback : list, optional
-            A fallback value to return if the option is not found.
+            A value to return if the option is not found.  Without it, a
+            missing option raises, as it does for :meth:`get` and the other
+            typed getters.
 
-        **kwargs : Any
-            Additional keyword arguments forwarded to
+        raw : bool, optional
+            Whether to return the raw value, leaving any references to other
+            config options uninterpolated
+
+        vars : dict, optional
+            Options consulted before the config's own sections
+
+        fallback : optional
+            A value to return if the option is not present.  Without it, a
+            missing option raises, as it does for
             :meth:`configparser.ConfigParser.get`.
 
         Returns
         -------
-        value : list | None
-            The value of the config option parsed into a list.
-        """
+        value : list
+            The value of the config option parsed into a list, or ``fallback``
+            if it was given and the option is not present.
 
-        # At this point, fallback is either None or a list. If the option is missing,
-        # and fallback is provided, return the fallback list directly without parsing.
-        raw = self.get(section, option, fallback=None, **kwargs)
-        if raw is None:
-            return fallback
+        Raises
+        ------
+        configparser.NoSectionError
+            If the section does not exist and no ``fallback`` was given.
+
+        configparser.NoOptionError
+            If the option does not exist and no ``fallback`` was given.
+        """
+        if fallback is _UNSET:
+            # let ConfigParser raise, so that a missing option is reported the
+            # same way here as it is by get(), getint() and the rest
+            raw = self.get(section, option, **kwargs)
+        else:
+            raw = self.get(section, option, fallback=None, **kwargs)
+            if raw is None:
+                # a fallback is returned as given, without being parsed
+                return fallback
         parts = raw.replace(',', ' ').split()
         items: list[T] = [dtype(value) for value in parts]
         return items
@@ -632,8 +798,16 @@ class Tranche:
         fallback : Any, optional
             A fallback value to return if the option is not found.
 
-        **kwargs : Any
-            Additional keyword arguments forwarded to
+        raw : bool, optional
+            Whether to return the raw value, leaving any references to other
+            config options uninterpolated
+
+        vars : dict, optional
+            Options consulted before the config's own sections
+
+        fallback : optional
+            A value to return if the option is not present.  Without it, a
+            missing option raises, as it does for
             :meth:`configparser.ConfigParser.get`.
         """  # noqa: E501
         expression_string = self.get(section, option, fallback=None, **kwargs)
@@ -694,8 +868,16 @@ class Tranche:
             Override backend.  None => choose "safe".
         fallback : Any, optional
             A fallback value to return if the option is not found.
-        **kwargs : Any
-            Additional keyword arguments forwarded to
+        raw : bool, optional
+            Whether to return the raw value, leaving any references to other
+            config options uninterpolated
+
+        vars : dict, optional
+            Options consulted before the config's own sections
+
+        fallback : optional
+            A value to return if the option is not present.  Without it, a
+            missing option raises, as it does for
             :meth:`configparser.ConfigParser.get`.
         """
         return self.getexpression(
@@ -968,10 +1150,26 @@ class Tranche:
         user : bool, optional
             Whether this config option was supplied by the user (e.g. through
             a command-line flag) and should take priority over other sources
+
+        Raises
+        ------
+        TypeError
+            If ``value`` is neither a ``str`` nor ``None``.
         """
         option = option.lower()
         calling_frame = inspect.stack(context=2)[1]
         filename = os.path.abspath(calling_frame.filename)
+
+        if value is not None and not isinstance(value, str):
+            # ConfigParser stores the value as given and only objects when the
+            # config is combined or written, by which point nothing says which
+            # option was at fault or where it came from.  Both are known here.
+            raise TypeError(
+                f'The value for [{section}] {option} must be a str, not '
+                f'{type(value).__name__}.  It was set at '
+                f'{filename}:{calling_frame.lineno}.  Convert it with '
+                f'str() at the call.'
+            )
 
         if user:
             config_dict = self._user_config
@@ -1352,11 +1550,8 @@ class Tranche:
         combined = cast(CombinedParser, self.combined)
         config_dict: dict[str, dict[str, str]] = {}
         for section in combined.sections():
-            # get() returns str | None, but for sections/options that
-            # exist in the combined parser, ConfigParser always returns
-            # a string. Help mypy with an explicit cast.
             config_dict[section] = {
-                option: cast(str, self.get(section, option))
+                option: self.get(section, option)
                 for option in combined.options(section)
             }
         validator(config_dict)
