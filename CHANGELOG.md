@@ -18,6 +18,11 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
   no `fallback` is given and `value | fallback` when one is.  They were
   annotated as always returning `X | None`, which forced callers to guard
   against a `None` that only an explicit `fallback` could produce.
+- **Breaking:** `set()` raises `TypeError` for a value that is neither a `str`
+  nor `None`, naming the section, the option and the file and line it was set
+  from.  Such a value was previously stored and only rejected later, when the
+  config was combined, by an error that identified none of those things.
+  (#23)
 - `raw`, `vars` and `fallback` are now declared and documented on every getter
   rather than hidden behind `**kwargs`.  They have been forwarded to
   `configparser` since 0.4.0, but nothing said so.  (#22)

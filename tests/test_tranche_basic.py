@@ -397,3 +397,25 @@ def test_every_getter_accepts_fallback_raw_and_vars(tmp_path: Path) -> None:
     assert cfg.get("s", "x", vars={"x": "7"}) == "7"
     assert cfg.getint("s", "x", vars={"x": "7"}) == 7
     assert cfg.get("s", "interpolated", vars={"x": "7"}) == "39"
+
+
+def test_set_rejects_a_non_string_value(tmp_path: Path) -> None:
+    """
+    A non-str value used to be stored happily and to fail later, during
+    combining, with an error naming neither the option nor its origin.
+    """
+    cfg_path = write_tmp_cfg(tmp_path, "set_type.cfg", "[s]\nx = 1\n")
+    cfg = Tranche()
+    cfg.add_from_file(cfg_path)
+
+    with pytest.raises(TypeError, match=r"\[s\] count must be a str, not int"):
+        cfg.set("s", "count", 42)  # type: ignore[arg-type]
+
+    # the error says where the bad value came from
+    with pytest.raises(TypeError, match="test_tranche_basic.py"):
+        cfg.set("s", "count", 42)  # type: ignore[arg-type]
+
+    # str and None are both still accepted
+    cfg.set("s", "count", "42")
+    assert cfg.getint("s", "count") == 42
+    cfg.set("s", "empty", None)

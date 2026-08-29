@@ -1150,10 +1150,26 @@ class Tranche:
         user : bool, optional
             Whether this config option was supplied by the user (e.g. through
             a command-line flag) and should take priority over other sources
+
+        Raises
+        ------
+        TypeError
+            If ``value`` is neither a ``str`` nor ``None``.
         """
         option = option.lower()
         calling_frame = inspect.stack(context=2)[1]
         filename = os.path.abspath(calling_frame.filename)
+
+        if value is not None and not isinstance(value, str):
+            # ConfigParser stores the value as given and only objects when the
+            # config is combined or written, by which point nothing says which
+            # option was at fault or where it came from.  Both are known here.
+            raise TypeError(
+                f'The value for [{section}] {option} must be a str, not '
+                f'{type(value).__name__}.  It was set at '
+                f'{filename}:{calling_frame.lineno}.  Convert it with '
+                f'str() at the call.'
+            )
 
         if user:
             config_dict = self._user_config
