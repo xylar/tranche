@@ -1,5 +1,6 @@
 import io
 import textwrap
+from configparser import NoOptionError, NoSectionError
 from pathlib import Path
 
 import pytest
@@ -308,3 +309,51 @@ def test_safe_eval_rejects_dunder_and_nonwhitelisted_attr(
     # Attribute chain on non-whitelisted object should be rejected
     with pytest.raises(ValueError):
         cfg.getexpression("expr", "val3", backend="safe")
+
+
+def test_getlist_raises_for_a_missing_option(tmp_path: Path) -> None:
+    """
+    A missing option is reported the same way by every typed getter, so that
+    ``getlist`` cannot quietly hand back ``None`` for a name that is simply
+    absent.
+    """
+    cfg_path = write_tmp_cfg(
+        tmp_path,
+        "getlist_missing.cfg",
+        """
+        [vals]
+        list = 1, 2, 3
+        """,
+    )
+
+    cfg = Tranche()
+    cfg.add_from_file(cfg_path)
+
+    with pytest.raises(NoOptionError):
+        cfg.getlist("vals", "missing")
+
+    with pytest.raises(NoSectionError):
+        cfg.getlist("absent", "list")
+
+    # the other typed getters behave the same way, which is the point
+    for getter in (cfg.get, cfg.getint, cfg.getfloat, cfg.getboolean):
+        with pytest.raises(NoOptionError):
+            getter("vals", "missing")
+
+
+def test_getlist_returns_an_explicit_none_fallback(tmp_path: Path) -> None:
+    """``fallback=None`` still means None; only its absence now raises."""
+    cfg_path = write_tmp_cfg(
+        tmp_path,
+        "getlist_none.cfg",
+        """
+        [vals]
+        list = 1, 2, 3
+        """,
+    )
+
+    cfg = Tranche()
+    cfg.add_from_file(cfg_path)
+
+    assert cfg.getlist("vals", "missing", fallback=None) is None
+    assert cfg.getlist("vals", "list", int) == [1, 2, 3]

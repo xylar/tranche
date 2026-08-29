@@ -27,6 +27,16 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - `Section` now re-derives a live `SectionProxy` on each access instead of
   caching one, so a held `Section` reflects later mutations rather than a stale
   snapshot.
+- **Breaking:** `getlist()` now raises `NoOptionError` or `NoSectionError` for a
+  missing option when no `fallback` is given, matching `get()`, `getint()`,
+  `getfloat()` and `getboolean()`.  It previously returned `None`, which turned
+  a mistyped option name into a `TypeError: 'NoneType' is not iterable` far
+  from its cause.  Pass `fallback=None` to keep the old result for one call.
+- `get()`, `getint()`, `getfloat()`, `getboolean()` and `getlist()` are now
+  typed with `configparser`-style overloads, so they return a plain value when
+  no `fallback` is given and `value | fallback` when one is.  They were
+  annotated as always returning `X | None`, which forced callers to guard
+  against a `None` that only an explicit `fallback` could produce.
 
 ## [0.2.2] - 2025-09-22
 ### Changed
