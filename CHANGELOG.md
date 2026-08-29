@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
 ## [Unreleased]
+
+## [0.6.0] - 2026-08-29
+### Changed
+- **Breaking:** `getlist()` now raises `NoOptionError` or `NoSectionError` for a
+  missing option when no `fallback` is given, matching `get()`, `getint()`,
+  `getfloat()` and `getboolean()`.  It previously returned `None`, which turned
+  a mistyped option name into a `TypeError: 'NoneType' is not iterable` far
+  from its cause.  Pass `fallback=None` to keep the old result for one call.
+- `get()`, `getint()`, `getfloat()`, `getboolean()` and `getlist()` are now
+  typed with `configparser`-style overloads, so they return a plain value when
+  no `fallback` is given and `value | fallback` when one is.  They were
+  annotated as always returning `X | None`, which forced callers to guard
+  against a `None` that only an explicit `fallback` could produce.
+
+### Fixed
+- Removed the `python_version` pin from the mypy configuration.  mypy applies
+  it when parsing installed type stubs as well as first-party code, so a pin
+  below the version those stubs are written for stopped mypy before it checked
+  anything.
+
+## [0.5.0] - 2026-06-25
 ### Added
 - Broader `configparser.ConfigParser` compatibility so tranche can be used as a
   more complete drop-in wrapper:
@@ -27,16 +48,22 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - `Section` now re-derives a live `SectionProxy` on each access instead of
   caching one, so a held `Section` reflects later mutations rather than a stale
   snapshot.
-- **Breaking:** `getlist()` now raises `NoOptionError` or `NoSectionError` for a
-  missing option when no `fallback` is given, matching `get()`, `getint()`,
-  `getfloat()` and `getboolean()`.  It previously returned `None`, which turned
-  a mistyped option name into a `TypeError: 'NoneType' is not iterable` far
-  from its cause.  Pass `fallback=None` to keep the old result for one call.
-- `get()`, `getint()`, `getfloat()`, `getboolean()` and `getlist()` are now
-  typed with `configparser`-style overloads, so they return a plain value when
-  no `fallback` is given and `value | fallback` when one is.  They were
-  annotated as always returning `X | None`, which forced callers to guard
-  against a `None` that only an explicit `fallback` could produce.
+
+## [0.4.0] - 2025-12-04
+### Added
+- Keyword arguments are forwarded from `get()`, `getint()`, `getfloat()`,
+  `getboolean()` and `getlist()` to the underlying
+  `configparser.ConfigParser` methods, so `fallback` and the other
+  `configparser` keyword arguments can be passed through.
+
+## [0.3.0] - 2025-11-04
+### Added
+- A `Section` wrapper giving access to one config section's options through
+  tranche's getters, with tests and documentation.
+
+## [0.2.3.post1] - 2025-09-23
+### Notes
+- Release metadata only; no code changes.
 
 ## [0.2.2] - 2025-09-22
 ### Changed
