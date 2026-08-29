@@ -95,7 +95,7 @@ class Section:
             Converter applied to each item. Defaults to ``str``.
 
         **kwargs : Any
-            Additional keyword arguments forwarded to
+            ``raw``, ``vars`` and ``fallback``, forwarded to
             :meth:`tranche.Tranche.getlist`.
 
         Returns
@@ -128,7 +128,7 @@ class Section:
             If True and using the "safe" backend, expose limited numpy
             functions under ``np``/``numpy``.
         **kwargs : Any
-            Additional keyword arguments forwarded to
+            ``raw``, ``vars`` and ``fallback``, forwarded to
             :meth:`tranche.Tranche.getexpression`.
 
         Returns
@@ -166,7 +166,7 @@ class Section:
         backend : {"literal", "safe"} or None, optional
             Backend override. ``None`` chooses ``"safe"``.
         **kwargs : Any
-            Additional keyword arguments forwarded to
+            ``raw``, ``vars`` and ``fallback``, forwarded to
             :meth:`tranche.Tranche.getnumpy`.
 
         Returns

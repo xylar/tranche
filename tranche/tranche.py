@@ -434,8 +434,16 @@ class Tranche:
         option : str
             The name of the config option
 
-        **kwargs : Any
-            Additional keyword arguments forwarded to
+        raw : bool, optional
+            Whether to return the raw value, leaving any references to other
+            config options uninterpolated
+
+        vars : dict, optional
+            Options consulted before the config's own sections
+
+        fallback : optional
+            A value to return if the option is not present.  Without it, a
+            missing option raises, as it does for
             :meth:`configparser.ConfigParser.get`.
 
         Returns
@@ -484,8 +492,16 @@ class Tranche:
         option : str
             The name of the config option
 
-        **kwargs : Any
-            Additional keyword arguments forwarded to
+        raw : bool, optional
+            Whether to return the raw value, leaving any references to other
+            config options uninterpolated
+
+        vars : dict, optional
+            Options consulted before the config's own sections
+
+        fallback : optional
+            A value to return if the option is not present.  Without it, a
+            missing option raises, as it does for
             :meth:`configparser.ConfigParser.getint`.
 
         Returns
@@ -533,8 +549,16 @@ class Tranche:
         option : str
             The name of the config option
 
-        **kwargs : Any
-            Additional keyword arguments forwarded to
+        raw : bool, optional
+            Whether to return the raw value, leaving any references to other
+            config options uninterpolated
+
+        vars : dict, optional
+            Options consulted before the config's own sections
+
+        fallback : optional
+            A value to return if the option is not present.  Without it, a
+            missing option raises, as it does for
             :meth:`configparser.ConfigParser.getfloat`.
 
         Returns
@@ -582,8 +606,16 @@ class Tranche:
         option : str
             The name of the config option
 
-        **kwargs : Any
-            Additional keyword arguments forwarded to
+        raw : bool, optional
+            Whether to return the raw value, leaving any references to other
+            config options uninterpolated
+
+        vars : dict, optional
+            Options consulted before the config's own sections
+
+        fallback : optional
+            A value to return if the option is not present.  Without it, a
+            missing option raises, as it does for
             :meth:`configparser.ConfigParser.getboolean`.
 
         Returns
@@ -685,8 +717,16 @@ class Tranche:
             missing option raises, as it does for :meth:`get` and the other
             typed getters.
 
-        **kwargs : Any
-            Additional keyword arguments forwarded to
+        raw : bool, optional
+            Whether to return the raw value, leaving any references to other
+            config options uninterpolated
+
+        vars : dict, optional
+            Options consulted before the config's own sections
+
+        fallback : optional
+            A value to return if the option is not present.  Without it, a
+            missing option raises, as it does for
             :meth:`configparser.ConfigParser.get`.
 
         Returns
@@ -758,8 +798,16 @@ class Tranche:
         fallback : Any, optional
             A fallback value to return if the option is not found.
 
-        **kwargs : Any
-            Additional keyword arguments forwarded to
+        raw : bool, optional
+            Whether to return the raw value, leaving any references to other
+            config options uninterpolated
+
+        vars : dict, optional
+            Options consulted before the config's own sections
+
+        fallback : optional
+            A value to return if the option is not present.  Without it, a
+            missing option raises, as it does for
             :meth:`configparser.ConfigParser.get`.
         """  # noqa: E501
         expression_string = self.get(section, option, fallback=None, **kwargs)
@@ -820,8 +868,16 @@ class Tranche:
             Override backend.  None => choose "safe".
         fallback : Any, optional
             A fallback value to return if the option is not found.
-        **kwargs : Any
-            Additional keyword arguments forwarded to
+        raw : bool, optional
+            Whether to return the raw value, leaving any references to other
+            config options uninterpolated
+
+        vars : dict, optional
+            Options consulted before the config's own sections
+
+        fallback : optional
+            A value to return if the option is not present.  Without it, a
+            missing option raises, as it does for
             :meth:`configparser.ConfigParser.get`.
         """
         return self.getexpression(
