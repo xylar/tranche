@@ -6,6 +6,20 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-08-29
+### Fixed
+- `getlist()` infers `list[str]` again when it is called without a `dtype`.
+  0.6.0's overloads spelled `dtype`'s default as `...`, which left mypy
+  nothing to solve the element type from, so such a call was inferred as
+  `list[Never]` and callers were asked to annotate a result whose type had
+  never been in doubt.  The no-`dtype` case now has overloads of its own, on
+  both `Tranche.getlist()` and `Section.getlist()`, rather than relying on a
+  default to bind the type variable.  Only typing was affected; the values
+  returned at runtime were always correct.
+- `Section.getlist()` declares `raw` and `vars`, which it has forwarded to
+  `Tranche.getlist()` all along but did not name in its overloads, so passing
+  either one was reported as an error.
+
 ## [0.6.0] - 2026-08-29
 ### Changed
 - **Breaking:** `getlist()` now raises `NoOptionError` or `NoSectionError` for a
