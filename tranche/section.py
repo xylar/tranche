@@ -1,6 +1,13 @@
 from __future__ import annotations
 
-from collections.abc import Callable, ItemsView, Iterator, KeysView, ValuesView
+from collections.abc import (
+    Callable,
+    ItemsView,
+    Iterator,
+    KeysView,
+    Mapping,
+    ValuesView,
+)
 from configparser import SectionProxy
 from typing import TYPE_CHECKING, Any, TypeVar, overload
 
@@ -61,19 +68,47 @@ class Section:
 
     # ---- Convenience getters backed by Tranche methods ----
 
+    # As in :meth:`tranche.Tranche.getlist`, the no-``dtype`` case gets its
+    # own overloads rather than an elided default, which would leave ``T``
+    # unsolved, and comes first so that it is the one matched.
+
     @overload
     def getlist(
         self,
         option: str,
-        dtype: Callable[[str], T] = ...,
+        *,
+        raw: bool = ...,
+        vars: Mapping[str, str] | None = ...,
+    ) -> list[str]: ...
+
+    @overload
+    def getlist(
+        self,
+        option: str,
+        *,
+        raw: bool = ...,
+        vars: Mapping[str, str] | None = ...,
+        fallback: F,
+    ) -> list[str] | F: ...
+
+    @overload
+    def getlist(
+        self,
+        option: str,
+        dtype: Callable[[str], T],
+        *,
+        raw: bool = ...,
+        vars: Mapping[str, str] | None = ...,
     ) -> list[T]: ...
 
     @overload
     def getlist(
         self,
         option: str,
-        dtype: Callable[[str], T] = ...,
+        dtype: Callable[[str], T],
         *,
+        raw: bool = ...,
+        vars: Mapping[str, str] | None = ...,
         fallback: F,
     ) -> list[T] | F: ...
 

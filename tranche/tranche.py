@@ -666,12 +666,39 @@ class Tranche:
         layer = "user" if source in self._user_config else "base"
         return {"value": value, "source": source, "layer": layer}
 
+    # ``dtype`` is a required argument in the overloads that mention it, and
+    # the default is given its own overloads instead.  Spelling the default as
+    # ``...`` leaves mypy nothing to solve ``T`` from, so a call without a
+    # ``dtype`` infers ``list[Never]`` rather than ``list[str]``.  The
+    # no-``dtype`` forms come first because the first matching overload wins.
+
     @overload
     def getlist(
         self,
         section: str,
         option: str,
-        dtype: Callable[[str], T] = ...,
+        *,
+        raw: bool = ...,
+        vars: Mapping[str, str] | None = ...,
+    ) -> list[str]: ...
+
+    @overload
+    def getlist(
+        self,
+        section: str,
+        option: str,
+        *,
+        raw: bool = ...,
+        vars: Mapping[str, str] | None = ...,
+        fallback: F,
+    ) -> list[str] | F: ...
+
+    @overload
+    def getlist(
+        self,
+        section: str,
+        option: str,
+        dtype: Callable[[str], T],
         *,
         raw: bool = ...,
         vars: Mapping[str, str] | None = ...,
@@ -682,7 +709,7 @@ class Tranche:
         self,
         section: str,
         option: str,
-        dtype: Callable[[str], T] = ...,
+        dtype: Callable[[str], T],
         *,
         raw: bool = ...,
         vars: Mapping[str, str] | None = ...,

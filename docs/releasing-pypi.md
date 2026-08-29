@@ -16,9 +16,22 @@ Releases are published by GitHub Actions. You generally don’t need to build or
 
 ## Normal release flow
 
-1) Bump the version in `tranche/version.py` and commit.
+1) Type-check a real consumer against the release candidate. tranche's own
+tests can show that a getter infers what it should, but not whether calling
+code still type-checks: 0.6.0 passed everything tranche had and still broke
+every `fields = config.getlist(...)` downstream. Point the consumer's type
+checker at this working tree and run the consumer's full lint step, rather
+than a type checker over its package directory, which checks fewer files and
+so under-reports:
 
-2) Tag the release (no leading `v`) and push the tag:
+```bash
+cd /path/to/consumer
+MYPYPATH=/path/to/tranche pre-commit run --all-files
+```
+
+2) Bump the version in `tranche/version.py` and commit.
+
+3) Tag the release (no leading `v`) and push the tag:
 
 ```bash
 git tag -a 0.1.1 -m "tranche 0.1.1"
